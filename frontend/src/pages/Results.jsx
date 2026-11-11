@@ -421,22 +421,23 @@ const StatsPanel = ({
 
 // Detailed slide-in panel (right column)
 const DetailPanel = ({ paper, onClose, summaryJobs, onStartSummarize, isSplitScreen, unpaywallPdfUrl }) => {
-  if (!paper) return null;
-
+  // All hooks below run unconditionally, before any early return, so the
+  // hook order stays stable even when paper is null. The null-paper
+  // early return lives after the last hook.
   const { user, isAuthenticated } = useAuth();
   const { toasts, showToast, removeToast } = useToast();
   const navigate = useNavigate();
 
-  const authors = Array.isArray(paper.authors) ? paper.authors : [];
-  const venue = paper.venue && paper.venue !== 'N/A' ? paper.venue : null;
-  const year = paper.year || null;
-  const citationCount = paper.citationCount || 0;
-  const referenceCount = paper.referenceCount || 0;
-  const doi = paper.externalIds && (paper.externalIds.DOI || paper.externalIds.doi);
-  const pdfUrl = paper.pdf_url || paper.openAccessPdf || (paper.url && paper.url.toLowerCase().endsWith('.pdf') ? paper.url : null);
-  const htmlUrl = paper.url && !pdfUrl ? paper.url : null;
-  const fields = Array.isArray(paper.fieldsOfStudy) ? paper.fieldsOfStudy : [];
-  const isOpenAccess = Boolean(paper.isOpenAccess);
+  const authors = Array.isArray(paper?.authors) ? paper.authors : [];
+  const venue = paper?.venue && paper.venue !== 'N/A' ? paper.venue : null;
+  const year = paper?.year || null;
+  const citationCount = paper?.citationCount || 0;
+  const referenceCount = paper?.referenceCount || 0;
+  const doi = paper?.externalIds && (paper.externalIds.DOI || paper.externalIds.doi);
+  const pdfUrl = paper?.pdf_url || paper?.openAccessPdf || (paper?.url && paper.url.toLowerCase().endsWith('.pdf') ? paper.url : null);
+  const htmlUrl = paper?.url && !pdfUrl ? paper.url : null;
+  const fields = Array.isArray(paper?.fieldsOfStudy) ? paper.fieldsOfStudy : [];
+  const isOpenAccess = Boolean(paper?.isOpenAccess);
   const [abstractExpanded, setAbstractExpanded] = useState(false);
 
   // State for saved articles functionality
@@ -468,36 +469,37 @@ const DetailPanel = ({ paper, onClose, summaryJobs, onStartSummarize, isSplitScr
   const chatRef = useRef(null);
   const draftRef = useRef(null);
 
-  const abstract = paper.abstract && paper.abstract !== 'N/A' ? paper.abstract : null;
+  const abstract = paper?.abstract && paper.abstract !== 'N/A' ? paper.abstract : null;
   const abstractPreview = abstract && abstract.length > 300 ? abstract.substring(0, 300) + '...' : abstract;
 
   // Derive summary state from the shared summaryJobs map
-  const paperId = paper.paperId || paper.id || paper.arxiv_id || paper.core_id || paper.pmc_id || paper.semantic_scholar_id || paper.crossref_id || paper.europe_pmc_id || paper.pubmed_id || paper.doaj_id || paper.unpaywall_id;
+  const paperId = paper?.paperId || paper?.id || paper?.arxiv_id || paper?.core_id || paper?.pmc_id || paper?.semantic_scholar_id || paper?.crossref_id || paper?.europe_pmc_id || paper?.pubmed_id || paper?.doaj_id || paper?.unpaywall_id;
   const currentJob = summaryJobs?.get(paperId);
   const summarizing = currentJob?.status === 'loading';
   const summary = currentJob?.status === 'done' ? currentJob.summary : null;
 
-  const paperIdForSaved = paper.paperId || paper.id || paper.arxiv_id || paper.core_id || paper.pmc_id || paper.semantic_scholar_id || paper.crossref_id || paper.europe_pmc_id || paper.pubmed_id || paper.doaj_id || paper.unpaywall_id;
-  const isArxiv = paper.source === 'arXiv' || paper.arxiv_id;
-  const isCore = paper.source === 'CORE' || paper.core_id;
-  const isPmc = paper.source === 'PMC' || paper.pmc_id;
-  const isOpenAlex = paper.source === 'OpenAlex';
-  const isCrossref = paper.source === 'Crossref' || paper.crossref_id;
-  const isEuropePmc = paper.source === 'Europe PMC' || paper.europe_pmc_id || paper.pmcid;
-  const isPubmed = paper.source === 'PubMed' || paper.pubmed_id || paper.pmid;
-  const isDoaj = paper.source === 'DOAJ' || paper.doaj_id;
-  const isUnpaywall = paper.source === 'Unpaywall' || paper.unpaywall_id;
-  const isSemanticScholar = paper.source === 'Semantic Scholar' || (paper.semantic_scholar_id && !isArxiv && !isCore && !isPmc && !isOpenAlex && !isCrossref && !isEuropePmc && !isPubmed && !isDoaj && !isUnpaywall);
-  const arxivId = paper.arxiv_id;
-  const coreId = paper.core_id;
-  const pmcId = paper.pmc_id;
-  const semanticScholarId = paper.semantic_scholar_id || paper.paperId;
-  const pdfUrlForExtract = paper.pdf_url || paper.openAccessPdf || pdfUrl || unpaywallPdfUrl;
+  const paperIdForSaved = paper?.paperId || paper?.id || paper?.arxiv_id || paper?.core_id || paper?.pmc_id || paper?.semantic_scholar_id || paper?.crossref_id || paper?.europe_pmc_id || paper?.pubmed_id || paper?.doaj_id || paper?.unpaywall_id;
+  const isArxiv = paper?.source === 'arXiv' || paper?.arxiv_id;
+  const isCore = paper?.source === 'CORE' || paper?.core_id;
+  const isPmc = paper?.source === 'PMC' || paper?.pmc_id;
+  const isOpenAlex = paper?.source === 'OpenAlex';
+  const isCrossref = paper?.source === 'Crossref' || paper?.crossref_id;
+  const isEuropePmc = paper?.source === 'Europe PMC' || paper?.europe_pmc_id || paper?.pmcid;
+  const isPubmed = paper?.source === 'PubMed' || paper?.pubmed_id || paper?.pmid;
+  const isDoaj = paper?.source === 'DOAJ' || paper?.doaj_id;
+  const isUnpaywall = paper?.source === 'Unpaywall' || paper?.unpaywall_id;
+  const isSemanticScholar = paper?.source === 'Semantic Scholar' || (paper?.semantic_scholar_id && !isArxiv && !isCore && !isPmc && !isOpenAlex && !isCrossref && !isEuropePmc && !isPubmed && !isDoaj && !isUnpaywall);
+  const arxivId = paper?.arxiv_id;
+  const coreId = paper?.core_id;
+  const pmcId = paper?.pmc_id;
+  const semanticScholarId = paper?.semantic_scholar_id || paper?.paperId;
+  const pdfUrlForExtract = paper?.pdf_url || paper?.openAccessPdf || pdfUrl || unpaywallPdfUrl;
 
   // Reset PDF content, chat, and draft when paper changes
   // NOTE: summary/summarizing are NOT reset here — they are derived from
   // the parent's summaryJobs map, so background jobs survive panel changes.
   useEffect(() => {
+    if (!paper) return;
     setPdfContent(null);
     setShowChat(false);
     setChatMessages([]);
@@ -567,6 +569,9 @@ const DetailPanel = ({ paper, onClose, summaryJobs, onStartSummarize, isSplitScr
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showLinkDropdown]);
+
+  // Early return only after every hook above has run unconditionally.
+  if (!paper) return null;
 
   // API Button Handler - Copy JSON to clipboard
   const handleCopyJSON = async () => {

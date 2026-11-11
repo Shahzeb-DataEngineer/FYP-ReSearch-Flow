@@ -124,6 +124,49 @@ On a low-RAM machine, use `qwen2.5:3b` instead and set
 
 ---
 
+## Run with Docker (one command)
+
+```bash
+docker compose up --build
+```
+
+This starts the backend on http://localhost:8000 and the frontend on
+http://localhost:3000 (nginx serves the built Vite app and proxies
+`/api/` to the backend).
+
+Ollama is **not** bundled in Compose: it is an external service and
+must already be running on the host before you start the stack
+(`ollama serve`, then `ollama pull qwen2.5:3b` and
+`ollama pull nomic-embed-text`). The backend reaches it through
+`OLLAMA_BASE_URL`, which defaults in Compose to
+`http://host.docker.internal:11434` (a standard Ollama install). If
+your Ollama listens on another port, for example a manual serve on
+11435, set it before starting Compose:
+
+```bash
+OLLAMA_BASE_URL=http://host.docker.internal:11435 docker compose up --build
+```
+
+Set `UNPAYWALL_EMAIL` to a real project address if you want Unpaywall
+lookups to work (the placeholder is rejected by Unpaywall with
+HTTP 422). See `.env.example` for the other optional settings.
+
+---
+
+## Tests
+
+Backend tests are plain stdlib `unittest` (no pytest dependency).
+From `backend/`:
+
+```bash
+python -m unittest discover -s src/app/tests -v
+```
+
+They cover the dedup helpers and the paper-source parsing functions
+with fixtures only: no network calls, no Ollama, no live APIs.
+
+---
+
 ## Database Design
 
 The system uses a hybrid approach:
