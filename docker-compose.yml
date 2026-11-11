@@ -1,0 +1,32 @@
+# One-command self-hosted demo: backend + frontend.
+#
+# Ollama is NOT bundled here: it is an external service. Start Ollama
+# on the host first (ollama serve, then ollama pull qwen2.5:3b and
+# ollama pull nomic-embed-text) and point OLLAMA_BASE_URL at it.
+# Inside the containers, the host is reachable as host.docker.internal,
+# so the default below targets a standard Ollama on port 11434. If
+# your Ollama runs on another port (for example a manual serve on
+# 11435), set OLLAMA_BASE_URL before starting compose, e.g.:
+#   OLLAMA_BASE_URL=http://host.docker.internal:11435 docker compose up --build
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    environment:
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      OLLAMA_CHAT_MODEL: ${OLLAMA_CHAT_MODEL:-qwen2.5:3b}
+      OLLAMA_EMBED_MODEL: ${OLLAMA_EMBED_MODEL:-nomic-embed-text}
+      UNPAYWALL_EMAIL: ${UNPAYWALL_EMAIL:-}
+      CORE_API_KEY: <redacted>
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  frontend:
+    # Reuses frontend/Dockerfile: builds the Vite app and serves it
+    # with nginx, proxying /api/ to the backend service.
+    build: ./frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
