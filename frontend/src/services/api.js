@@ -1346,6 +1346,542 @@ export const europePmcAPI = {
   }
 };
 
+// PubMed API functions (free source, no API key)
+export const pubmedAPI = {
+  /**
+   * Search PubMed for papers
+   * @param {string} query - Search query/topic
+   * @param {number} limit - Number of results (default: 20)
+   * @returns {Promise<Object>} Response with papers array
+   */
+  async searchPapers(query, limit = 20) {
+    try {
+      const url = new URL(`${API_BASE_URL}/pubmed/search`);
+      url.searchParams.append('query', query);
+      url.searchParams.append('limit', limit);
+
+      const response = await fetch(url.toString(), {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new APIError(
+          data.detail?.message || 'Failed to search PubMed',
+          response.status,
+          data.detail
+        );
+      }
+
+      return data;
+    } catch (error) {
+      if (error instanceof APIError) {
+        throw error;
+      }
+
+      throw new APIError(
+        'Network error: Could not connect to server',
+        0,
+        { originalError: error.message }
+      );
+    }
+  },
+
+  /**
+   * Extract full PDF content from any paper (works with any source)
+   * @param {string} pdfUrl - PDF URL
+   * @returns {Promise<Object>} Full extracted text from PDF
+   */
+  async extractPdfContent(pdfUrl) {
+    try {
+      if (!pdfUrl) {
+        throw new APIError('pdfUrl must be provided', 400);
+      }
+
+      const response = await fetch(`${API_BASE_URL}/pubmed/extract`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ pdf_url: pdfUrl }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new APIError(
+          data.detail?.message || 'Failed to extract PDF content',
+          response.status,
+          data.detail
+        );
+      }
+
+      return data;
+    } catch (error) {
+      if (error instanceof APIError) {
+        throw error;
+      }
+
+      throw new APIError(
+        'Network error: Could not connect to server',
+        0,
+        { originalError: error.message }
+      );
+    }
+  },
+
+  /**
+   * Summarize a paper (works with a PDF URL or, as a fallback, the
+   * paper's abstract - the PubMed backend supports both)
+   * @param {string} pdfUrl - PDF URL
+   * @param {string} title - Paper title
+   * @param {string} abstract - Paper abstract (used when no PDF is available)
+   * @param {string} doi - Paper DOI (optional)
+   * @returns {Promise<Object>} Summary with structured sections
+   */
+  async summarizePaper(pdfUrl, title = "", abstract = "", doi = "") {
+    try {
+      if (!pdfUrl && !abstract) {
+        throw new APIError('pdfUrl or abstract must be provided', 400);
+      }
+
+      const body = {
+        pdf_url: pdfUrl,
+        title: title,
+        abstract: abstract
+      };
+      if (doi) body.doi = doi;
+
+      const response = await fetch(`${API_BASE_URL}/pubmed/summarize`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new APIError(
+          data.detail?.message || 'Failed to summarize paper',
+          response.status,
+          data.detail
+        );
+      }
+
+      return data;
+    } catch (error) {
+      if (error instanceof APIError) {
+        throw error;
+      }
+
+      throw new APIError(
+        'Network error: Could not connect to server',
+        0,
+        { originalError: error.message }
+      );
+    }
+  },
+
+  /**
+   * Ask a question about a paper from any source
+   * @param {string} pdfUrl - PDF URL
+   * @param {string} question - Question to ask
+   * @param {Array} conversationHistory - Optional
+   * @param {string} pdfText - Optional pre-extracted text (skips backend PDF extraction)
+   */
+  async askQuestion(pdfUrl, question = "", conversationHistory = [], pdfText = null) {
+    try {
+      if (!pdfUrl && !pdfText) throw new APIError('pdfUrl or pdfText must be provided', 400);
+
+      const requestBody = { question };
+      if (pdfUrl) requestBody.pdf_url = pdfUrl;
+      if (pdfText && pdfText.length > 100) requestBody.pdf_text = pdfText;
+      if (conversationHistory && conversationHistory.length > 0) {
+        requestBody.conversation_history = conversationHistory;
+      }
+
+      const response = await fetch(`${API_BASE_URL}/pubmed/ask`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(requestBody),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new APIError(data.detail?.message || 'Failed to get answer', response.status, data.detail);
+      }
+      return data;
+    } catch (error) {
+      if (error instanceof APIError) throw error;
+      throw new APIError('Network error: Could not connect to server', 0, { originalError: error.message });
+    }
+  }
+};
+
+
+// DOAJ API functions (free source, no API key)
+export const doajAPI = {
+  /**
+   * Search DOAJ for papers
+   * @param {string} query - Search query/topic
+   * @param {number} limit - Number of results (default: 20)
+   * @returns {Promise<Object>} Response with papers array
+   */
+  async searchPapers(query, limit = 20) {
+    try {
+      const url = new URL(`${API_BASE_URL}/doaj/search`);
+      url.searchParams.append('query', query);
+      url.searchParams.append('limit', limit);
+
+      const response = await fetch(url.toString(), {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new APIError(
+          data.detail?.message || 'Failed to search DOAJ',
+          response.status,
+          data.detail
+        );
+      }
+
+      return data;
+    } catch (error) {
+      if (error instanceof APIError) {
+        throw error;
+      }
+
+      throw new APIError(
+        'Network error: Could not connect to server',
+        0,
+        { originalError: error.message }
+      );
+    }
+  },
+
+  /**
+   * Extract full PDF content from any paper (works with any source)
+   * @param {string} pdfUrl - PDF URL
+   * @returns {Promise<Object>} Full extracted text from PDF
+   */
+  async extractPdfContent(pdfUrl) {
+    try {
+      if (!pdfUrl) {
+        throw new APIError('pdfUrl must be provided', 400);
+      }
+
+      const response = await fetch(`${API_BASE_URL}/doaj/extract`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ pdf_url: pdfUrl }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new APIError(
+          data.detail?.message || 'Failed to extract PDF content',
+          response.status,
+          data.detail
+        );
+      }
+
+      return data;
+    } catch (error) {
+      if (error instanceof APIError) {
+        throw error;
+      }
+
+      throw new APIError(
+        'Network error: Could not connect to server',
+        0,
+        { originalError: error.message }
+      );
+    }
+  },
+
+  /**
+   * Summarize a paper (works with a PDF URL or, as a fallback, the
+   * paper's abstract - the DOAJ backend supports both)
+   * @param {string} pdfUrl - PDF URL
+   * @param {string} title - Paper title
+   * @param {string} abstract - Paper abstract (used when no PDF is available)
+   * @param {string} doi - Paper DOI (optional)
+   * @returns {Promise<Object>} Summary with structured sections
+   */
+  async summarizePaper(pdfUrl, title = "", abstract = "", doi = "") {
+    try {
+      if (!pdfUrl && !abstract) {
+        throw new APIError('pdfUrl or abstract must be provided', 400);
+      }
+
+      const body = {
+        pdf_url: pdfUrl,
+        title: title,
+        abstract: abstract
+      };
+      if (doi) body.doi = doi;
+
+      const response = await fetch(`${API_BASE_URL}/doaj/summarize`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new APIError(
+          data.detail?.message || 'Failed to summarize paper',
+          response.status,
+          data.detail
+        );
+      }
+
+      return data;
+    } catch (error) {
+      if (error instanceof APIError) {
+        throw error;
+      }
+
+      throw new APIError(
+        'Network error: Could not connect to server',
+        0,
+        { originalError: error.message }
+      );
+    }
+  },
+
+  /**
+   * Ask a question about a paper from any source
+   * @param {string} pdfUrl - PDF URL
+   * @param {string} question - Question to ask
+   * @param {Array} conversationHistory - Optional
+   * @param {string} pdfText - Optional pre-extracted text (skips backend PDF extraction)
+   */
+  async askQuestion(pdfUrl, question = "", conversationHistory = [], pdfText = null) {
+    try {
+      if (!pdfUrl && !pdfText) throw new APIError('pdfUrl or pdfText must be provided', 400);
+
+      const requestBody = { question };
+      if (pdfUrl) requestBody.pdf_url = pdfUrl;
+      if (pdfText && pdfText.length > 100) requestBody.pdf_text = pdfText;
+      if (conversationHistory && conversationHistory.length > 0) {
+        requestBody.conversation_history = conversationHistory;
+      }
+
+      const response = await fetch(`${API_BASE_URL}/doaj/ask`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(requestBody),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new APIError(data.detail?.message || 'Failed to get answer', response.status, data.detail);
+      }
+      return data;
+    } catch (error) {
+      if (error instanceof APIError) throw error;
+      throw new APIError('Network error: Could not connect to server', 0, { originalError: error.message });
+    }
+  }
+};
+
+
+// Unpaywall API functions (free source, no API key)
+export const unpaywallAPI = {
+  /**
+   * Look up a paper by DOI on Unpaywall (DOI-based source, no keyword search)
+   * @param {string} doi - DOI of the paper, with or without a doi.org prefix
+   * @returns {Promise<Object>} Response with a single paper array, or no_results
+   *   when the DOI has no open-access copy
+   */
+  async searchPapers(doi) {
+    try {
+      const url = new URL(`${API_BASE_URL}/unpaywall/search`);
+      url.searchParams.append('doi', doi);
+
+      const response = await fetch(url.toString(), {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new APIError(
+          data.detail?.message || 'Failed to search Unpaywall',
+          response.status,
+          data.detail
+        );
+      }
+
+      return data;
+    } catch (error) {
+      if (error instanceof APIError) {
+        throw error;
+      }
+
+      throw new APIError(
+        'Network error: Could not connect to server',
+        0,
+        { originalError: error.message }
+      );
+    }
+  },
+
+  /**
+   * Extract full PDF content from any paper (works with any source)
+   * @param {string} pdfUrl - PDF URL
+   * @returns {Promise<Object>} Full extracted text from PDF
+   */
+  async extractPdfContent(pdfUrl) {
+    try {
+      if (!pdfUrl) {
+        throw new APIError('pdfUrl must be provided', 400);
+      }
+
+      const response = await fetch(`${API_BASE_URL}/unpaywall/extract`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ pdf_url: pdfUrl }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new APIError(
+          data.detail?.message || 'Failed to extract PDF content',
+          response.status,
+          data.detail
+        );
+      }
+
+      return data;
+    } catch (error) {
+      if (error instanceof APIError) {
+        throw error;
+      }
+
+      throw new APIError(
+        'Network error: Could not connect to server',
+        0,
+        { originalError: error.message }
+      );
+    }
+  },
+
+  /**
+   * Summarize a paper (works with a PDF URL or, as a fallback, the
+   * paper's abstract - the Unpaywall backend supports both)
+   * @param {string} pdfUrl - PDF URL
+   * @param {string} title - Paper title
+   * @param {string} abstract - Paper abstract (used when no PDF is available)
+   * @param {string} doi - Paper DOI (optional)
+   * @returns {Promise<Object>} Summary with structured sections
+   */
+  async summarizePaper(pdfUrl, title = "", abstract = "", doi = "") {
+    try {
+      if (!pdfUrl && !abstract) {
+        throw new APIError('pdfUrl or abstract must be provided', 400);
+      }
+
+      const body = {
+        pdf_url: pdfUrl,
+        title: title,
+        abstract: abstract
+      };
+      if (doi) body.doi = doi;
+
+      const response = await fetch(`${API_BASE_URL}/unpaywall/summarize`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new APIError(
+          data.detail?.message || 'Failed to summarize paper',
+          response.status,
+          data.detail
+        );
+      }
+
+      return data;
+    } catch (error) {
+      if (error instanceof APIError) {
+        throw error;
+      }
+
+      throw new APIError(
+        'Network error: Could not connect to server',
+        0,
+        { originalError: error.message }
+      );
+    }
+  },
+
+  /**
+   * Ask a question about a paper from any source
+   * @param {string} pdfUrl - PDF URL
+   * @param {string} question - Question to ask
+   * @param {Array} conversationHistory - Optional
+   * @param {string} pdfText - Optional pre-extracted text (skips backend PDF extraction)
+   */
+  async askQuestion(pdfUrl, question = "", conversationHistory = [], pdfText = null) {
+    try {
+      if (!pdfUrl && !pdfText) throw new APIError('pdfUrl or pdfText must be provided', 400);
+
+      const requestBody = { question };
+      if (pdfUrl) requestBody.pdf_url = pdfUrl;
+      if (pdfText && pdfText.length > 100) requestBody.pdf_text = pdfText;
+      if (conversationHistory && conversationHistory.length > 0) {
+        requestBody.conversation_history = conversationHistory;
+      }
+
+      const response = await fetch(`${API_BASE_URL}/unpaywall/ask`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(requestBody),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new APIError(data.detail?.message || 'Failed to get answer', response.status, data.detail);
+      }
+      return data;
+    } catch (error) {
+      if (error instanceof APIError) throw error;
+      throw new APIError('Network error: Could not connect to server', 0, { originalError: error.message });
+    }
+  }
+};
+
+
 // Trends API functions
 export const trendsAPI = {
   /**

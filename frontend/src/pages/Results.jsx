@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { searchAPI, savedArticlesAPI, arxivAPI, coreAPI, pmcAPI, semanticScholarAPI, crossrefAPI, europePmcAPI, draftAPI, chatAPI, APIError } from '../services/api';
+import { searchAPI, savedArticlesAPI, arxivAPI, coreAPI, pmcAPI, semanticScholarAPI, crossrefAPI, europePmcAPI, pubmedAPI, doajAPI, unpaywallAPI, draftAPI, chatAPI, APIError } from '../services/api';
 import {
   BookOpen, X, FileText, MessageSquare, Code, Download,
   ChevronDown, ChevronUp, Plus, Trash2, MoreVertical, ArrowUpDown, BarChart3, CheckSquare, Network,
@@ -36,7 +36,10 @@ const PaperListItem = ({ paper, isSelected, onClick }) => {
   const isOpenAlex = allSources.includes('OpenAlex');
   const isCrossref = allSources.includes('Crossref') || paper.crossref_id;
   const isEuropePmc = allSources.includes('Europe PMC') || paper.europe_pmc_id || paper.pmcid;
-  const isSemanticScholar = allSources.includes('Semantic Scholar') || (paper.semantic_scholar_id && !isArxiv && !isCore && !isPmc && !isOpenAlex && !isCrossref && !isEuropePmc);
+  const isPubmed = allSources.includes('PubMed') || paper.pubmed_id || paper.pmid;
+  const isDoaj = allSources.includes('DOAJ') || paper.doaj_id;
+  const isUnpaywall = allSources.includes('Unpaywall') || paper.unpaywall_id;
+  const isSemanticScholar = allSources.includes('Semantic Scholar') || (paper.semantic_scholar_id && !isArxiv && !isCore && !isPmc && !isOpenAlex && !isCrossref && !isEuropePmc && !isPubmed && !isDoaj && !isUnpaywall);
   const arxivId = paper.arxiv_id;
   const coreId = paper.core_id;
   const pmcId = paper.pmc_id;
@@ -67,6 +70,9 @@ const PaperListItem = ({ paper, isSelected, onClick }) => {
           {isSemanticScholar && <span className="font-mono text-xs bg-purple-100 px-1.5 py-0.5 rounded text-purple-800 mr-1">Semantic Scholar</span>}
           {isCrossref && <span className="font-mono text-xs bg-teal-100 px-1.5 py-0.5 rounded text-teal-800 mr-1">Crossref</span>}
           {isEuropePmc && <span className="font-mono text-xs bg-pink-100 px-1.5 py-0.5 rounded text-pink-800 mr-1">Europe PMC</span>}
+          {isPubmed && <span className="font-mono text-xs bg-cyan-100 px-1.5 py-0.5 rounded text-cyan-800 mr-1">PubMed</span>}
+          {isDoaj && <span className="font-mono text-xs bg-orange-100 px-1.5 py-0.5 rounded text-orange-800 mr-1">DOAJ</span>}
+          {isUnpaywall && <span className="font-mono text-xs bg-lime-100 px-1.5 py-0.5 rounded text-lime-800 mr-1">Unpaywall</span>}
           {year && <span className="ml-1">{year}</span>}
           {authors && <span className="ml-2">{authors}</span>}
           {venue && <span className="ml-2"> · {venue}</span>}
@@ -414,7 +420,7 @@ const StatsPanel = ({
 };
 
 // Detailed slide-in panel (right column)
-const DetailPanel = ({ paper, onClose, summaryJobs, onStartSummarize, isSplitScreen }) => {
+const DetailPanel = ({ paper, onClose, summaryJobs, onStartSummarize, isSplitScreen, unpaywallPdfUrl }) => {
   if (!paper) return null;
 
   const { user, isAuthenticated } = useAuth();
@@ -466,24 +472,27 @@ const DetailPanel = ({ paper, onClose, summaryJobs, onStartSummarize, isSplitScr
   const abstractPreview = abstract && abstract.length > 300 ? abstract.substring(0, 300) + '...' : abstract;
 
   // Derive summary state from the shared summaryJobs map
-  const paperId = paper.paperId || paper.id || paper.arxiv_id || paper.core_id || paper.pmc_id || paper.semantic_scholar_id || paper.crossref_id || paper.europe_pmc_id;
+  const paperId = paper.paperId || paper.id || paper.arxiv_id || paper.core_id || paper.pmc_id || paper.semantic_scholar_id || paper.crossref_id || paper.europe_pmc_id || paper.pubmed_id || paper.doaj_id || paper.unpaywall_id;
   const currentJob = summaryJobs?.get(paperId);
   const summarizing = currentJob?.status === 'loading';
   const summary = currentJob?.status === 'done' ? currentJob.summary : null;
 
-  const paperIdForSaved = paper.paperId || paper.id || paper.arxiv_id || paper.core_id || paper.pmc_id || paper.semantic_scholar_id || paper.crossref_id || paper.europe_pmc_id;
+  const paperIdForSaved = paper.paperId || paper.id || paper.arxiv_id || paper.core_id || paper.pmc_id || paper.semantic_scholar_id || paper.crossref_id || paper.europe_pmc_id || paper.pubmed_id || paper.doaj_id || paper.unpaywall_id;
   const isArxiv = paper.source === 'arXiv' || paper.arxiv_id;
   const isCore = paper.source === 'CORE' || paper.core_id;
   const isPmc = paper.source === 'PMC' || paper.pmc_id;
   const isOpenAlex = paper.source === 'OpenAlex';
   const isCrossref = paper.source === 'Crossref' || paper.crossref_id;
   const isEuropePmc = paper.source === 'Europe PMC' || paper.europe_pmc_id || paper.pmcid;
-  const isSemanticScholar = paper.source === 'Semantic Scholar' || (paper.semantic_scholar_id && !isArxiv && !isCore && !isPmc && !isOpenAlex && !isCrossref && !isEuropePmc);
+  const isPubmed = paper.source === 'PubMed' || paper.pubmed_id || paper.pmid;
+  const isDoaj = paper.source === 'DOAJ' || paper.doaj_id;
+  const isUnpaywall = paper.source === 'Unpaywall' || paper.unpaywall_id;
+  const isSemanticScholar = paper.source === 'Semantic Scholar' || (paper.semantic_scholar_id && !isArxiv && !isCore && !isPmc && !isOpenAlex && !isCrossref && !isEuropePmc && !isPubmed && !isDoaj && !isUnpaywall);
   const arxivId = paper.arxiv_id;
   const coreId = paper.core_id;
   const pmcId = paper.pmc_id;
   const semanticScholarId = paper.semantic_scholar_id || paper.paperId;
-  const pdfUrlForExtract = paper.pdf_url || paper.openAccessPdf || pdfUrl;
+  const pdfUrlForExtract = paper.pdf_url || paper.openAccessPdf || pdfUrl || unpaywallPdfUrl;
 
   // Reset PDF content, chat, and draft when paper changes
   // NOTE: summary/summarizing are NOT reset here — they are derived from
@@ -508,6 +517,7 @@ const DetailPanel = ({ paper, onClose, summaryJobs, onStartSummarize, isSplitScr
       setPdfContent(job.fullText);
     }
   }, [paper]);
+
 
   // Auto-scroll to summary when a background job completes while panel is open
   useEffect(() => {
@@ -675,7 +685,7 @@ const DetailPanel = ({ paper, onClose, summaryJobs, onStartSummarize, isSplitScr
   const handleSummarize = () => {
     // Check if PDF is available for extraction
     if (!pdfUrlForExtract) {
-      if ((isSemanticScholar || isCrossref || isEuropePmc) && abstract) {
+      if ((isSemanticScholar || isCrossref || isEuropePmc || isPubmed || isDoaj || isUnpaywall) && abstract) {
         showToast('PDF not available for this paper. Summarization requires PDF access.', 'info');
       } else {
         showToast('No PDF URL available for this paper', 'error');
@@ -752,7 +762,7 @@ const DetailPanel = ({ paper, onClose, summaryJobs, onStartSummarize, isSplitScr
 
       // Determine paper source for metadata
       const paperSource = isArxiv ? 'arXiv' : isCore ? 'CORE' : isPmc ? 'PMC'
-        : isCrossref ? 'Crossref' : isEuropePmc ? 'Europe PMC' : isSemanticScholar ? 'Semantic Scholar' : 'Unknown';
+        : isCrossref ? 'Crossref' : isEuropePmc ? 'Europe PMC' : isPubmed ? 'PubMed' : isDoaj ? 'DOAJ' : isUnpaywall ? 'Unpaywall' : isSemanticScholar ? 'Semantic Scholar' : 'Unknown';
 
       // Use unified chatAPI with Redis session persistence
       const response = await chatAPI.askQuestion(userQuestion, {
@@ -827,9 +837,9 @@ const DetailPanel = ({ paper, onClose, summaryJobs, onStartSummarize, isSplitScr
             HTML
           </a>
         )}
-        {pdfUrl && (
+        {pdfUrlForExtract && (
           <a
-            href={pdfUrl}
+            href={pdfUrlForExtract}
             target="_blank"
             rel="noopener noreferrer"
             className="px-4 py-2 bg-black hover:bg-gray-800 text-white rounded text-sm flex items-center gap-2 transition-colors"
@@ -910,8 +920,8 @@ const DetailPanel = ({ paper, onClose, summaryJobs, onStartSummarize, isSplitScr
             Notes
           </button>
         )}
-        {/* Show summarize button if: PDF available OR (Semantic Scholar/Crossref/Europe PMC paper with abstract) */}
-        {(pdfUrlForExtract || (isSemanticScholar && abstract) || (isCrossref && abstract) || (isEuropePmc && abstract)) && (
+        {/* Show summarize button if: PDF available OR (Semantic Scholar/Crossref/Europe PMC/PubMed/DOAJ/Unpaywall paper with abstract) */}
+        {(pdfUrlForExtract || (isSemanticScholar && abstract) || (isCrossref && abstract) || (isEuropePmc && abstract) || (isPubmed && abstract) || (isDoaj && abstract) || (isUnpaywall && abstract)) && (
           <>
             <button
               onClick={handleSummarize}
@@ -920,7 +930,7 @@ const DetailPanel = ({ paper, onClose, summaryJobs, onStartSummarize, isSplitScr
                 ? 'bg-gray-100 hover:bg-gray-200 text-black border border-gray-300'
                 : 'bg-black hover:bg-gray-800 text-white'
                 } disabled:opacity-50 disabled:cursor-not-allowed`}
-              title={summary ? 'Summary already generated' : pdfUrlForExtract ? 'Extract PDF and generate AI summary (local AI)' : ((isSemanticScholar || isCrossref || isEuropePmc) && abstract ? 'PDF not available - only abstract available' : 'Extract PDF and generate AI summary')}
+              title={summary ? 'Summary already generated' : pdfUrlForExtract ? 'Extract PDF and generate AI summary (local AI)' : ((isSemanticScholar || isCrossref || isEuropePmc || isPubmed || isDoaj || isUnpaywall) && abstract ? 'PDF not available - only abstract available' : 'Extract PDF and generate AI summary')}
             >
               {summarizing ? (
                 <>
@@ -1649,7 +1659,31 @@ export default function Results() {
   const [error, setError] = useState(null);
   const [stats, setStats] = useState(null);
   const [selectedPaper, setSelectedPaper] = useState(null);
+  const [unpaywallPdfUrl, setUnpaywallPdfUrl] = useState(null);
   const [showStatsPanel, setShowStatsPanel] = useState(true);
+
+  // Resolve an open-access PDF via Unpaywall when the selected paper
+  // carries a DOI but no PDF link. Unpaywall is DOI-based, so it never
+  // joins the keyword search dispatch; this lookup runs once per
+  // selection and the resolved URL is passed to DetailPanel, where it
+  // feeds pdfUrlForExtract (PDF link, extract, chat, draft and
+  // summarize all use it).
+  useEffect(() => {
+    let cancelled = false;
+    setUnpaywallPdfUrl(null);
+    if (!selectedPaper) return undefined;
+    const paperPdf = selectedPaper.pdf_url || selectedPaper.openAccessPdf ||
+      (selectedPaper.url && selectedPaper.url.toLowerCase().endsWith('.pdf') ? selectedPaper.url : null);
+    if (paperPdf) return undefined;
+    const doiValue = extractDOI(selectedPaper);
+    if (!doiValue) return undefined;
+    unpaywallAPI.searchPapers(doiValue).then((res) => {
+      if (cancelled) return;
+      const found = res && res.status === 'success' && res.papers && res.papers[0];
+      if (found && found.pdf_url) setUnpaywallPdfUrl(found.pdf_url);
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [selectedPaper]);
   const [showCitationMesh, setShowCitationMesh] = useState(false);
   const citationNetworkCache = React.useRef(null); // Persists network data across open/close
   const [currentPage, setCurrentPage] = useState(1);
@@ -1696,7 +1730,7 @@ export default function Results() {
    * so closing the panel does NOT cancel the operation.
    */
   const startBackgroundSummarize = useCallback(async (paper) => {
-    const id = paper.paperId || paper.id || paper.arxiv_id || paper.core_id || paper.pmc_id || paper.semantic_scholar_id || paper.crossref_id || paper.europe_pmc_id;
+    const id = paper.paperId || paper.id || paper.arxiv_id || paper.core_id || paper.pmc_id || paper.semantic_scholar_id || paper.crossref_id || paper.europe_pmc_id || paper.pubmed_id || paper.doaj_id || paper.unpaywall_id;
     if (!id) return;
 
     // Don't start if already loading or done
@@ -1725,6 +1759,9 @@ export default function Results() {
     const isSemanticScholar = paper.source === 'Semantic Scholar' || (paper.semantic_scholar_id && !isArxiv && !isCore && !isPmc);
     const isCrossref = paper.source === 'Crossref' || paper.crossref_id;
     const isEuropePmc = paper.source === 'Europe PMC' || paper.europe_pmc_id || paper.pmcid;
+    const isPubmed = paper.source === 'PubMed' || paper.pubmed_id || paper.pmid;
+    const isDoaj = paper.source === 'DOAJ' || paper.doaj_id;
+    const isUnpaywall = paper.source === 'Unpaywall' || paper.unpaywall_id;
     const pdfUrl = paper.pdf_url || paper.openAccessPdf || (paper.url && paper.url.toLowerCase().endsWith('.pdf') ? paper.url : null);
     const arxivId = paper.arxiv_id;
     const title = paper.title || "";
@@ -1746,6 +1783,12 @@ export default function Results() {
         response = await crossrefAPI.summarizePaper(pdfUrl, title, abstract, doi);
       } else if (isEuropePmc) {
         response = await europePmcAPI.summarizePaper(pdfUrl, title, abstract, doi);
+      } else if (isPubmed) {
+        response = await pubmedAPI.summarizePaper(pdfUrl, title, abstract, doi);
+      } else if (isDoaj) {
+        response = await doajAPI.summarizePaper(pdfUrl, title, abstract, doi);
+      } else if (isUnpaywall) {
+        response = await unpaywallAPI.summarizePaper(pdfUrl, title, abstract, doi);
       } else {
         response = await semanticScholarAPI.summarizePaper(pdfUrl, title, abstract);
       }
@@ -2005,7 +2048,12 @@ export default function Results() {
         { name: 'Semantic Scholar', promise: semanticScholarAPI.searchPapers(topic, 20).catch(err => ({ status: 'error', error: err })) },
         { name: 'Crossref', promise: crossrefAPI.searchPapers(topic, 20).catch(err => ({ status: 'error', error: err })) },
         { name: 'Europe PMC', promise: europePmcAPI.searchPapers(topic, 20).catch(err => ({ status: 'error', error: err })) },
+        { name: 'PubMed', promise: pubmedAPI.searchPapers(topic, 20).catch(err => ({ status: 'error', error: err })) },
+        { name: 'DOAJ', promise: doajAPI.searchPapers(topic, 20).catch(err => ({ status: 'error', error: err })) },
       ];
+      // Unpaywall is DOI-based with no keyword search, so it does not
+      // join the dispatch above. It resolves OA PDFs per paper by DOI
+      // in the detail panel (see the Unpaywall lookup effect there).
 
       // Check cache result first
       const cachedData = await cachePromise;
@@ -2025,7 +2073,7 @@ export default function Results() {
 
       // === OPTIMIZATION: Progressive Loading ===
       // Show results from each API as soon as it resolves, instead of
-      // waiting for ALL 6 to finish. User sees first results in 1-2 sec.
+      // waiting for ALL 9 keyword sources to finish. User sees first results in 1-2 sec.
       console.log('No cache found, fetching from all APIs with progressive loading...');
 
       let progressivePapers = [];
@@ -2035,9 +2083,9 @@ export default function Results() {
       // Process each API result as it arrives
       const processResult = (name, result) => {
         completedCount++;
-        // Each of 7 sources contributes ~13.6%, starting from 5%
+        // Each of 10 sources contributes ~9%, starting from 5% (9 keyword sources plus Unpaywall DOI lookup)
         setFetchProgress(Math.min(5 + Math.round((completedCount / apiCalls.length) * 90), 95));
-        console.log(`[${completedCount}/7] ${name} completed:`, {
+        console.log(`[${completedCount}/10] ${name} completed:`, {
           status: result?.status,
           paperCount: result?.papers?.length || 0,
           hasError: !!result?.error,
@@ -2927,6 +2975,7 @@ export default function Results() {
               summaryJobs={summaryJobs}
               onStartSummarize={startBackgroundSummarize}
               isSplitScreen={showCitationMesh && !!selectedPaper}
+              unpaywallPdfUrl={unpaywallPdfUrl}
             />
             <div
               className="fixed inset-0 bg-black/30 z-40 md:hidden"
