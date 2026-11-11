@@ -33,16 +33,17 @@ ReSearch Flow provides an **end-to-end research assistant** that:
 ## Key Features
 
 ### Multi-Source Search
-- OpenAlex, arXiv, CORE, PubMed, Semantic Scholar, Google Scholar  
+- OpenAlex, arXiv, CORE, PMC, Semantic Scholar, Crossref, Europe PMC  
 - Parallel API calls with progressive loading  
 
 ### AI Summarization
-- GPT-4o based structured summaries  
+- Local Ollama model (qwen2.5:7b on a 16 GB laptop, qwen2.5:3b on low-RAM machines)  
+- Structured summaries, no paid API key  
 - Extracts insights from full PDF content  
 
 ### RAG-based Chat
 - Ask questions about any paper  
-- Hybrid retrieval (Pinecone + BM25)  
+- Hybrid retrieval (local FAISS + BM25, nomic-embed-text)  
 - Context-aware responses  
 
 ### Citation Mesh
@@ -69,9 +70,9 @@ Frontend (React + Vite)
 >
 Backend (FastAPI)
 >
-AI Layer (LangChain + GPT-4o)
+AI Layer (LangChain + local Ollama)
 >
-Databases (Supabase, Pinecone, Redis)
+Databases (Supabase, local FAISS, Redis)
 >
 External APIs (OpenAlex, arXiv, etc.)
 
@@ -92,9 +93,9 @@ External APIs (OpenAlex, arXiv, etc.)
 - Pandas  
 
 ### AI & ML
-- OpenAI GPT-4o  
+- Ollama (local, zero cost): qwen2.5:7b / qwen2.5:3b chat, nomic-embed-text embeddings  
 - LangChain  
-- Pinecone (Vector DB)  
+- FAISS (local vector store, per-paper index)  
 - BM25 Retriever  
 
 ### Database & Storage
@@ -104,13 +105,32 @@ External APIs (OpenAlex, arXiv, etc.)
 
 ---
 
+## Zero-cost note
+
+This project uses no paid APIs. LLM work runs on a local Ollama model,
+search uses free sources (OpenAlex, arXiv, CORE, PMC, Semantic Scholar,
+Crossref, Europe PMC), and vector search uses local FAISS. Google Scholar
+was removed because it needed the paid SerpAPI service.
+
+To run the AI features:
+
+```bash
+ollama pull qwen2.5:7b
+ollama pull nomic-embed-text
+```
+
+On a low-RAM machine, use `qwen2.5:3b` instead and set
+`OLLAMA_CHAT_MODEL=qwen2.5:3b` in your `.env`. See `.env.example`.
+
+---
+
 ## Database Design
 
 The system uses a hybrid approach:
 
 - **Structured Data** → Supabase (users, saved searches, history)  
 - **Cached Papers** → research_papers table  
-- **Vector Embeddings** → Pinecone  
+- **Vector Embeddings** → local FAISS (per-paper index)  
 - **Session Data** → Redis  
 
 ---
@@ -157,7 +177,7 @@ The system uses a hybrid approach:
 ## Limitations
 
 - Requires open-access PDFs for full AI analysis  
-- API rate limits (especially Google Scholar)  
+- API rate limits on free sources  
 - Initial RAG indexing delay for new papers  
 
 ---

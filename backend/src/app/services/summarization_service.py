@@ -1,6 +1,6 @@
 """
 Summarization Service
-Provides text summarization using LLM (OpenRouter/OpenAI) or fallback to extractive method.
+Provides text summarization using a local Ollama LLM or fallback to extractive method.
 """
 import logging
 import re
@@ -12,7 +12,7 @@ from .llm_service import summarize_with_llm
 def summarize_paper(text: str, max_sentences: int = 5, use_llm: bool = True) -> Dict[str, str]:
     """
     Generate a structured summary of a research paper.
-    Uses LLM (OpenRouter/OpenAI) if available, otherwise falls back to extractive method.
+    Uses the local Ollama LLM if available, otherwise falls back to extractive method.
     
     Args:
         text: Full text of the paper

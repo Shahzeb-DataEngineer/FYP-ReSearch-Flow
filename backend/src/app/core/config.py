@@ -7,28 +7,35 @@ BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
 class Settings(BaseSettings):
     SUPABASE_URL: str = ""
     SUPABASE_KEY: str = ""
-    # LLM configuration
-    # Prefer OpenAI if OPENAI_API_KEY is set, otherwise fall back to OpenRouter
-    OPENAI_API_KEY: Optional[str] = None
-    OPENROUTER_API_KEY: Optional[str] = None
+    # LLM configuration - local Ollama only. No paid LLM APIs.
+    # The FYP-era OpenAI / OpenRouter keys are removed on purpose:
+    # this is a non-commercial research project and must stay zero-cost.
+    # Chat model is chosen by machine: qwen2.5:3b on this dev machine
+    # (no GPU, ~6 GB RAM), qwen2.5:7b on a 16 GB laptop (see README).
+    OLLAMA_BASE_URL: str = "http://127.0.0.1:11435"
+    OLLAMA_CHAT_MODEL: str = "qwen2.5:3b"
+    OLLAMA_EMBED_MODEL: str = "nomic-embed-text"
+    OLLAMA_NUM_CTX: int = 8192
+    # Optional local vision model for figure analysis (e.g. "llava:7b").
+    # None (default) means figure/vision analysis is OFF: figures are
+    # still extracted from the PDF, but not analyzed, and the draft
+    # says so instead of failing. A vision model needs much more RAM
+    # than the 3B chat model, so it is never enabled by default.
+    OLLAMA_VISION_MODEL: Optional[str] = None
     CORE_API_KEY: Optional[str] = None
-    SERPAPI_API_KEY: Optional[str] = None
     SEMANTIC_SCHOLAR_API_KEY: Optional[str] = None
-    PINECONE_API_KEY: Optional[str] = None
-    
-    # Pinecone RAG Configuration
-    PINECONE_INDEX_NAME: str = "research-papers"
-    OPENAI_EMBEDDING_MODEL: str = "text-embedding-3-small"
-    
+
     # Upstash Redis Configuration
     UPSTASH_REDIS_REST_URL: Optional[str] = None
     UPSTASH_REDIS_REST_TOKEN: Optional[str] = None
     REDIS_CHAT_TTL: int = 3600  # 1 hour TTL for chat sessions
 
     # Neo4j Configuration
+    # NEO4J_PASSWORD has no default: set it in the environment.
+    # The old hardcoded default ("password") was a security flaw.
     NEO4J_URI: str = "bolt://localhost:7687"
     NEO4J_USER: str = "neo4j"
-    NEO4J_PASSWORD: str = "password"
+    NEO4J_PASSWORD: str = ""
     # CORS Configuration
     CORS_ORIGINS: list[str] = ["*"]
 

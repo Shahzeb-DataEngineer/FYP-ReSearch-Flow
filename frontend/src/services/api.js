@@ -990,17 +990,17 @@ export const semanticScholarAPI = {
   }
 };
 
-// Google Scholar API functions (using SerpAPI)
-export const googleScholarAPI = {
+// Crossref API functions (free source, no API key)
+export const crossrefAPI = {
   /**
-   * Search Google Scholar for papers
+   * Search Crossref for papers
    * @param {string} query - Search query/topic
    * @param {number} limit - Number of results (default: 20)
    * @returns {Promise<Object>} Response with papers array
    */
   async searchPapers(query, limit = 20) {
     try {
-      const url = new URL(`${API_BASE_URL}/google-scholar/search`);
+      const url = new URL(`${API_BASE_URL}/crossref/search`);
       url.searchParams.append('query', query);
       url.searchParams.append('limit', limit);
 
@@ -1015,7 +1015,7 @@ export const googleScholarAPI = {
 
       if (!response.ok) {
         throw new APIError(
-          data.detail?.message || 'Failed to search Google Scholar',
+          data.detail?.message || 'Failed to search Crossref',
           response.status,
           data.detail
         );
@@ -1046,7 +1046,7 @@ export const googleScholarAPI = {
         throw new APIError('pdfUrl must be provided', 400);
       }
 
-      const response = await fetch(`${API_BASE_URL}/google-scholar/extract`, {
+      const response = await fetch(`${API_BASE_URL}/crossref/extract`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1079,26 +1079,33 @@ export const googleScholarAPI = {
   },
 
   /**
-   * Summarize a paper from any source (works with any PDF URL)
+   * Summarize a paper (works with a PDF URL or, as a fallback, the
+   * paper's abstract - the Crossref backend supports both)
    * @param {string} pdfUrl - PDF URL
+   * @param {string} title - Paper title
+   * @param {string} abstract - Paper abstract (used when no PDF is available)
+   * @param {string} doi - Paper DOI (optional)
    * @returns {Promise<Object>} Summary with structured sections
    */
-  async summarizePaper(pdfUrl, title = "", abstract = "") {
+  async summarizePaper(pdfUrl, title = "", abstract = "", doi = "") {
     try {
-      if (!pdfUrl) {
-        throw new APIError('pdfUrl must be provided', 400);
+      if (!pdfUrl && !abstract) {
+        throw new APIError('pdfUrl or abstract must be provided', 400);
       }
 
-      const response = await fetch(`${API_BASE_URL}/google-scholar/summarize`, {
+      const body = {
+        pdf_url: pdfUrl,
+        title: title,
+        abstract: abstract
+      };
+      if (doi) body.doi = doi;
+
+      const response = await fetch(`${API_BASE_URL}/crossref/summarize`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ 
-          pdf_url: pdfUrl,
-          title: title,
-          abstract: abstract 
-        }),
+        body: JSON.stringify(body),
       });
 
       const data = await response.json();
@@ -1143,7 +1150,185 @@ export const googleScholarAPI = {
         requestBody.conversation_history = conversationHistory;
       }
 
-      const response = await fetch(`${API_BASE_URL}/google-scholar/ask`, {
+      const response = await fetch(`${API_BASE_URL}/crossref/ask`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(requestBody),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new APIError(data.detail?.message || 'Failed to get answer', response.status, data.detail);
+      }
+      return data;
+    } catch (error) {
+      if (error instanceof APIError) throw error;
+      throw new APIError('Network error: Could not connect to server', 0, { originalError: error.message });
+    }
+  }
+};
+
+// Europe PMC API functions (free source, no API key)
+export const europePmcAPI = {
+  /**
+   * Search Europe PMC for papers
+   * @param {string} query - Search query/topic
+   * @param {number} limit - Number of results (default: 20)
+   * @returns {Promise<Object>} Response with papers array
+   */
+  async searchPapers(query, limit = 20) {
+    try {
+      const url = new URL(`${API_BASE_URL}/europe-pmc/search`);
+      url.searchParams.append('query', query);
+      url.searchParams.append('limit', limit);
+
+      const response = await fetch(url.toString(), {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new APIError(
+          data.detail?.message || 'Failed to search Europe PMC',
+          response.status,
+          data.detail
+        );
+      }
+
+      return data;
+    } catch (error) {
+      if (error instanceof APIError) {
+        throw error;
+      }
+
+      throw new APIError(
+        'Network error: Could not connect to server',
+        0,
+        { originalError: error.message }
+      );
+    }
+  },
+
+  /**
+   * Extract full PDF content from any paper (works with any source)
+   * @param {string} pdfUrl - PDF URL
+   * @returns {Promise<Object>} Full extracted text from PDF
+   */
+  async extractPdfContent(pdfUrl) {
+    try {
+      if (!pdfUrl) {
+        throw new APIError('pdfUrl must be provided', 400);
+      }
+
+      const response = await fetch(`${API_BASE_URL}/europe-pmc/extract`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ pdf_url: pdfUrl }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new APIError(
+          data.detail?.message || 'Failed to extract PDF content',
+          response.status,
+          data.detail
+        );
+      }
+
+      return data;
+    } catch (error) {
+      if (error instanceof APIError) {
+        throw error;
+      }
+
+      throw new APIError(
+        'Network error: Could not connect to server',
+        0,
+        { originalError: error.message }
+      );
+    }
+  },
+
+  /**
+   * Summarize a paper (works with a PDF URL or, as a fallback, the
+   * paper's abstract - the Europe PMC backend supports both)
+   * @param {string} pdfUrl - PDF URL
+   * @param {string} title - Paper title
+   * @param {string} abstract - Paper abstract (used when no PDF is available)
+   * @param {string} doi - Paper DOI (optional)
+   * @returns {Promise<Object>} Summary with structured sections
+   */
+  async summarizePaper(pdfUrl, title = "", abstract = "", doi = "") {
+    try {
+      if (!pdfUrl && !abstract) {
+        throw new APIError('pdfUrl or abstract must be provided', 400);
+      }
+
+      const body = {
+        pdf_url: pdfUrl,
+        title: title,
+        abstract: abstract
+      };
+      if (doi) body.doi = doi;
+
+      const response = await fetch(`${API_BASE_URL}/europe-pmc/summarize`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new APIError(
+          data.detail?.message || 'Failed to summarize paper',
+          response.status,
+          data.detail
+        );
+      }
+
+      return data;
+    } catch (error) {
+      if (error instanceof APIError) {
+        throw error;
+      }
+
+      throw new APIError(
+        'Network error: Could not connect to server',
+        0,
+        { originalError: error.message }
+      );
+    }
+  },
+
+  /**
+   * Ask a question about a paper from any source
+   * @param {string} pdfUrl - PDF URL
+   * @param {string} question - Question to ask
+   * @param {Array} conversationHistory - Optional
+   * @param {string} pdfText - Optional pre-extracted text (skips backend PDF extraction)
+   */
+  async askQuestion(pdfUrl, question = "", conversationHistory = [], pdfText = null) {
+    try {
+      if (!pdfUrl && !pdfText) throw new APIError('pdfUrl or pdfText must be provided', 400);
+
+      const requestBody = { question };
+      if (pdfUrl) requestBody.pdf_url = pdfUrl;
+      if (pdfText && pdfText.length > 100) requestBody.pdf_text = pdfText;
+      if (conversationHistory && conversationHistory.length > 0) {
+        requestBody.conversation_history = conversationHistory;
+      }
+
+      const response = await fetch(`${API_BASE_URL}/europe-pmc/ask`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(requestBody),

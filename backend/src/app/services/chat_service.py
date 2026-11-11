@@ -1,6 +1,11 @@
 """
 Chat Service
-Handles Q&A conversations about research papers using LLM + Pinecone RAG.
+Handles Q&A conversations about research papers using local Ollama
+RAG (FAISS + BM25, zero cost). No OpenAI, no Pinecone.
+
+Embeddings are nomic-embed-text (768 dim). A FAISS index is built
+fresh per paper in memory and rebuilt after a restart; there is no
+shared cloud index and no Pinecone index to reuse.
 """
 import hashlib
 import json
@@ -11,7 +16,6 @@ from typing import List, Dict, Optional, Tuple
 
 from ..core.config import settings
 
-from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.documents import Document
@@ -19,22 +23,18 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, Base
 from langchain_classic.chains import create_history_aware_retriever, create_retrieval_chain
 from langchain_classic.chains.combine_documents import create_stuff_documents_chain
 from langchain_community.retrievers import BM25Retriever
+from langchain_community.vectorstores import FAISS
 from langchain_classic.retrievers import EnsembleRetriever
-from pinecone import Pinecone, ServerlessSpec
-from langchain_pinecone import PineconeVectorStore
 
+from .llm_provider import get_models
 
-INDEX_NAME = settings.PINECONE_INDEX_NAME
-EMBEDDING_MODEL_NAME = settings.OPENAI_EMBEDDING_MODEL
-
-# In-memory set tracking which paper_ids are already indexed in Pinecone.
-# Prevents calling add_documents on every question — the root cause of "Not found".
-# Resets on server restart (acceptable: first question per paper re-checks Pinecone).
+# In-memory FAISS index per paper (built fresh, rebuilt after restart).
+_faiss_stores: Dict[str, FAISS] = {}
 _indexed_paper_ids: set = set()
 
 # In-memory store of raw (pre-contextual) chunks per paper for BM25 keyword retrieval.
 # BM25 is exact keyword matching — it catches what semantic search misses.
-# Stored as plain text strings; rebuilt from Pinecone on server restart if needed.
+# Stored as plain text strings; rebuilt from paper text on server restart.
 _paper_chunks_cache: Dict[str, List[Document]] = {}
 
 # Fallback chat sessions when Upstash Redis is not configured (dev / single-worker).
@@ -53,50 +53,15 @@ def _use_contextual_chunk_prefix() -> bool:
 
 # ── Internal helpers ───────────────────────────────────────────────────────
 
-def _get_models(chat_model: str) -> Tuple[OpenAIEmbeddings, ChatOpenAI]:
-    if settings.OPENAI_API_KEY and not os.getenv("OPENAI_API_KEY"):
-        os.environ["OPENAI_API_KEY"] = settings.OPENAI_API_KEY
-    embeddings = OpenAIEmbeddings(model=EMBEDDING_MODEL_NAME)
-    llm = ChatOpenAI(model=chat_model, temperature=0)
-    return embeddings, llm
-
-
-def _resolve_pinecone_api_key() -> str:
-    """Key from process env or pydantic-loaded .env (Settings does not set os.environ)."""
-    key = (os.getenv("PINECONE_API_KEY") or (settings.PINECONE_API_KEY or "")).strip()
-    if not key:
-        raise ValueError("PINECONE_API_KEY not configured")
-    return key
-
-
-def _get_pinecone() -> Pinecone:
-    api_key = _resolve_pinecone_api_key()
-    # LangChain PineconeVectorStore reads PINECONE_API_KEY from the environment only
-    # unless pinecone_api_key= is passed; keep env in sync with Settings/.env.
-    os.environ["PINECONE_API_KEY"] = api_key
-    return Pinecone(api_key=api_key)
-
-
-def _ensure_index(pc: Pinecone) -> None:
-    """Create Pinecone index if it does not already exist."""
-    if INDEX_NAME in pc.list_indexes().names():
-        return
-    pc.create_index(
-        name=INDEX_NAME,
-        dimension=1536,    # must match text-embedding-3-small
-        metric="cosine",
-        spec=ServerlessSpec(
-            cloud=os.getenv("PINECONE_CLOUD", "aws"),
-            region=os.getenv("PINECONE_REGION", "us-east-1")
-        ),
-    )
-    logging.info(f"Pinecone index '{INDEX_NAME}' created")
+def _get_models(chat_model=None):
+    """Return (embeddings, llm) from the local Ollama provider."""
+    return get_models(chat_model)
 
 
 def _make_paper_id(paper_text: str) -> str:
     """
     Derive a stable short ID from paper text.
-    Use first 40 chars of SHA256 — well within Pinecone's namespace limit.
+    Use first 40 chars of SHA256 as a stable paper id.
     """
     sha = hashlib.sha256()
     sha.update(paper_text.encode("utf-8", errors="ignore"))
@@ -104,11 +69,11 @@ def _make_paper_id(paper_text: str) -> str:
 
 
 def make_paper_id(paper_text: str) -> str:
-    """Stable paper id (same as Pinecone namespace) — first 40 hex chars of SHA256 of full text."""
+    """Stable paper id — first 40 hex chars of SHA256 of full text."""
     return _make_paper_id(paper_text)
 
 
-def _add_context_to_chunk(chunk: Document, full_paper: str, llm: ChatOpenAI) -> Document:
+def _add_context_to_chunk(chunk: Document, full_paper: str, llm) -> Document:
     """
     Contextual embeddings: prepend an AI-generated description of where this
     chunk sits in the paper before embedding it.
@@ -150,7 +115,7 @@ def _add_context_to_chunk(chunk: Document, full_paper: str, llm: ChatOpenAI) -> 
 def _split_to_documents(
     paper_text: str,
     paper_id: str,
-    llm: ChatOpenAI,
+    llm,
     paper_title: Optional[str] = None,
     paper_source: Optional[str] = None,
 ) -> Tuple[List[Document], List[Document]]:
@@ -158,11 +123,11 @@ def _split_to_documents(
     Split paper text into chunks and attach metadata.
 
     Optionally (CHAT_CONTEXTUAL_CHUNK_PREFIX=1) prepends an LLM summary per chunk
-    for Pinecone; default is plain chunks only so the first question returns quickly.
+    for FAISS; default is plain chunks only so the first question returns quickly.
 
     Returns:
         raw_chunks:            Original chunks (BM25 keyword retrieval)
-        contextualized_chunks: Chunks for Pinecone vector indexing
+        contextualized_chunks: Chunks for FAISS vector indexing
     """
     meta = {"paper_id": paper_id}
     if paper_title:
@@ -215,107 +180,27 @@ def _stable_chunk_ids(chunks: List[Document], paper_id: str) -> List[str]:
     return ids
 
 
-def _is_paper_indexed(pc: Pinecone, paper_id: str) -> bool:
-    """
-    Check Pinecone to see if this paper's namespace already has vectors.
-    Used to skip re-indexing on every question.
-    """
-    try:
-        index = pc.Index(INDEX_NAME)
-        stats = index.describe_index_stats()
-        namespaces = stats.get("namespaces", {})
-        ns = namespaces.get(paper_id, {})
-        count = ns.get("vector_count", 0)
-        return count > 0
-    except Exception as e:
-        logging.warning(f"Could not check index stats: {e}")
-        return False   # if unsure, re-index to be safe
-
-
-def _wait_for_indexing(
-    pc: Pinecone,
-    paper_id: str,
-    expected_count: int,
-    timeout: Optional[int] = None,
-) -> None:
-    """
-    Poll Pinecone until the expected number of vectors appear in the namespace,
-    or until timeout is reached.
-
-    FIX: Replaces the fragile time.sleep(3) approach. A fixed sleep races
-    against Pinecone's async upsert — under load or network lag it fires
-    the query before vectors are ready, causing "Not found in the document".
-
-    This poll loop checks every second and only proceeds once vectors are
-    confirmed present, with a generous but bounded timeout.
-    """
-    if timeout is None:
-        # Serverless stats can lag; scale with batch size (cap 5 min).
-        timeout = min(300, max(45, 35 + expected_count * 2))
-    index = pc.Index(INDEX_NAME)
-    deadline = time.time() + timeout
-    last_count = 0
-
-    logging.info(
-        f"Waiting for Pinecone to index {expected_count} vectors "
-        f"in namespace '{paper_id[:12]}' (timeout={timeout}s)..."
-    )
-
-    while time.time() < deadline:
-        try:
-            stats = index.describe_index_stats()
-            ns = stats.get("namespaces", {}).get(paper_id, {})
-            last_count = ns.get("vector_count", 0)
-            if last_count >= expected_count:
-                logging.info(
-                    f"Pinecone ready: {last_count}/{expected_count} vectors confirmed."
-                )
-                return
-        except Exception as e:
-            logging.warning(f"Poll error while waiting for indexing: {e}")
-
-        time.sleep(1)
-
-    # Timeout reached — log a warning but do not crash. Retrieval may still
-    # partially succeed, and the in-memory cache will prevent re-indexing.
-    logging.warning(
-        f"Pinecone indexing timed out after {timeout}s. "
-        f"Got {last_count}/{expected_count} vectors. Proceeding anyway."
-    )
-
-
 def _index_paper(
-    vectorstore: PineconeVectorStore,
-    pc: Pinecone,
     paper_text: str,
     paper_id: str,
-    llm: ChatOpenAI,
+    llm,
     paper_title: Optional[str],
     paper_source: Optional[str],
-) -> None:
+):
     """
-    Index paper into Pinecone ONLY if not already indexed.
-
-    Uses a poll loop (not sleep) to wait for vectors to be ready,
-    and enriches each chunk with contextual embeddings before upsert.
+    Build a fresh in-memory FAISS index for one paper (768-dim
+    nomic-embed-text vectors). The index is per paper and per process:
+    it is rebuilt after a restart, never loaded from a Pinecone index.
+    Returns the FAISS store.
     """
     global _indexed_paper_ids
 
-    # Fast path: already confirmed indexed this session
-    if paper_id in _indexed_paper_ids:
-        logging.debug(f"Paper {paper_id[:12]} already indexed (cached). Skipping upsert.")
-        return
+    if paper_id in _indexed_paper_ids and paper_id in _faiss_stores:
+        logging.debug(f"Paper {paper_id[:12]} already indexed (cached).")
+        return _faiss_stores[paper_id]
 
-    # Slower path: check Pinecone directly
-    if _is_paper_indexed(pc, paper_id):
-        logging.info(f"Paper {paper_id[:12]} found in Pinecone. Skipping upsert.")
-        _indexed_paper_ids.add(paper_id)
-        return
-
-    # Paper not indexed yet — upload now
-    logging.info(f"Indexing paper {paper_id[:12]} into Pinecone...")
-
-    # _split_to_documents returns raw chunks (for BM25) and contextualized chunks (for Pinecone)
+    logging.info(f"Indexing paper {paper_id[:12]} into local FAISS...")
+    embeddings, _llm = _get_models()
     raw_chunks, contextualized_chunks = _split_to_documents(
         paper_text,
         paper_id,
@@ -323,18 +208,12 @@ def _index_paper(
         paper_title=paper_title,
         paper_source=paper_source,
     )
-    ids = _stable_chunk_ids(contextualized_chunks, paper_id)
-    vectorstore.add_documents(contextualized_chunks, ids=ids)
-
-    # Cache raw chunks for BM25 keyword retrieval (never the contextualized ones —
-    # BM25 needs clean original text for exact keyword matching)
+    vectorstore = FAISS.from_documents(contextualized_chunks, embeddings)
+    _faiss_stores[paper_id] = vectorstore
     _paper_chunks_cache[paper_id] = raw_chunks
-
-    # Poll until Pinecone confirms all vectors are ready (replaces sleep)
-    _wait_for_indexing(pc, paper_id, expected_count=len(contextualized_chunks))
-
     _indexed_paper_ids.add(paper_id)
     logging.info(f"Paper {paper_id[:12]} indexed successfully ({len(contextualized_chunks)} chunks)")
+    return vectorstore
 
 
 def _to_langchain_messages(
@@ -360,7 +239,7 @@ def _to_langchain_messages(
     return msgs
 
 
-def _build_rag_chain(llm: ChatOpenAI, retriever, has_history: bool):
+def _build_rag_chain(llm, retriever, has_history: bool):
     """
     Build the RAG pipeline.
 
@@ -509,19 +388,19 @@ def ask_about_paper(
     question: str,
     paper_text: str,
     conversation_history: Optional[List[Dict[str, str]]] = None,
-    model: str = "gpt-4o-mini",
+    model: Optional[str] = None,
     paper_title: Optional[str] = None,
     paper_source: Optional[str] = None,
 ) -> Optional[str]:
     """
-    Answer a question about a research paper using RAG (Pinecone + LangChain).
+    Answer a question about a research paper using local Ollama RAG (FAISS + LangChain).
 
     Args:
         question:             User's question about the paper
         paper_text:           Full extracted text of the paper
         conversation_history: Previous messages [{role, content}, ...]
-        model:                Chat model (default: gpt-4o-mini)
-        paper_title:          Paper title stored in Pinecone metadata
+        model:                Ollama chat model (default: settings.OLLAMA_CHAT_MODEL)
+        paper_title:          Paper title stored in chunk metadata
         paper_source:         Source e.g. arXiv, CORE, PMC
 
     Returns:
@@ -534,27 +413,11 @@ def ask_about_paper(
         raise ValueError("Paper text too short or empty for Q&A")
 
     try:
-        if not (settings.OPENAI_API_KEY or os.getenv("OPENAI_API_KEY")):
-            raise ValueError("OPENAI_API_KEY not configured")
-
         embeddings, llm = _get_models(model)
-        pc = _get_pinecone()
-        _ensure_index(pc)
-
         paper_id = _make_paper_id(paper_text)
 
-        # _get_pinecone() already synced Settings/.env key into os.environ; pass explicitly too.
-        vectorstore = PineconeVectorStore(
-            index_name=INDEX_NAME,
-            embedding=embeddings,
-            namespace=paper_id,
-            pinecone_api_key=os.environ["PINECONE_API_KEY"],
-        )
-
-        # Index only when needed — llm is now passed for contextual embeddings
-        _index_paper(
-            vectorstore=vectorstore,
-            pc=pc,
+        # Index only when needed — llm is passed for contextual embeddings
+        vectorstore = _index_paper(
             paper_text=paper_text,
             paper_id=paper_id,
             llm=llm,
@@ -562,7 +425,7 @@ def ask_about_paper(
             paper_source=paper_source,
         )
 
-        # ── Retriever: Ensemble of BM25 (keyword) + Pinecone (semantic) ──────
+        # ── Retriever: Ensemble of BM25 (keyword) + FAISS (semantic) ──────
         #
         # WHY: MMR + MultiQueryRetriever were the root cause of random failures.
         #   - MMR actively discards the most relevant chunk for "diversity"
@@ -571,7 +434,7 @@ def ask_about_paper(
         #
         # FIX: Hybrid retrieval — BM25 catches exact keyword matches that
         # semantic search misses (e.g. specific numbers, names, acronyms).
-        # Pinecone semantic search catches meaning-based matches.
+        # FAISS semantic search catches meaning-based matches.
         # EnsembleRetriever fuses both with Reciprocal Rank Fusion (RRF),
         # which is far more stable than MMR for factual Q&A.
 
@@ -598,15 +461,15 @@ def ask_about_paper(
         bm25_retriever = BM25Retriever.from_documents(bm25_docs)
         bm25_retriever.k = 6
 
-        # Pinecone — pure cosine similarity (NOT MMR) for consistent top-k ranking
-        pinecone_retriever = vectorstore.as_retriever(
+        # FAISS — pure cosine similarity (NOT MMR) for consistent top-k ranking
+        faiss_retriever = vectorstore.as_retriever(
             search_type="similarity",
             search_kwargs={"k": 6},
         )
 
         # Ensemble — fuse both retrievers with equal weight using RRF
         retriever = EnsembleRetriever(
-            retrievers=[bm25_retriever, pinecone_retriever],
+            retrievers=[bm25_retriever, faiss_retriever],
             weights=[0.4, 0.6],   # slightly favour semantic; tune if needed
         )
 
@@ -638,7 +501,7 @@ def ask_about_paper_with_session(
     session_id: str,
     question: str,
     paper_text: str,
-    model: str = "gpt-4o-mini",
+    model: Optional[str] = None,
     paper_title: Optional[str] = None,
     paper_source: Optional[str] = None,
 ) -> Optional[str]:
