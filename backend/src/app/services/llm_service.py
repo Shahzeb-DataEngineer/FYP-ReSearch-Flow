@@ -1,178 +1,210 @@
 """
 LLM Service
-Handles communication with OpenRouter API for LLM-based summarization.
+Summarization using a local Ollama model (zero cost, no API key).
+
+Replaces the old OpenAI / OpenRouter implementation. The public
+function keeps its old shape so existing routes do not change:
+summarize_with_llm(text) -> dict with problem_statement, methodology,
+key_findings, conclusion, or an extractive fallback dict if Ollama
+is unreachable (never None on a long-enough text, unless the text
+itself is too short).
+
+Chunking: Ollama runs with num_ctx=8192, so long papers are split
+into ~12000-character chunks (about 3000 tokens) instead of the old
+100000-character single call. Each chunk is summarized, then the
+chunk summaries are merged.
 """
 import logging
 import json
-import requests
-from typing import Dict, Optional
-from ..core.config import settings
+import re
+from typing import Dict, List, Optional
 
-OPENAI_API_URL = "https://api.openai.com/v1/chat/completions"
-OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
+from .llm_provider import get_chat_model, check_ollama_available
+
+MAX_CHUNK_CHARS = 12000
+
+SUMMARY_FIELDS = ("problem_statement", "methodology", "key_findings", "conclusion")
 
 
-def summarize_with_llm(text: str, model: str = "gpt-4o") -> Optional[Dict[str, str]]:
+def summarize_with_llm(text: str, model: Optional[str] = None) -> Optional[Dict[str, str]]:
     """
-    Summarize a research paper using OpenAI API.
-    
+    Summarize a research paper using the local Ollama model.
+
     Args:
         text: Full text of the paper to summarize
-        model: Model to use (default: gpt-4o-mini for speed and cost efficiency)
-    
-    Returns:
-        Dictionary with structured summary sections, or None if error
-    """
-    # Decide which LLM provider to use: OpenAI or OpenRouter
-    api_url: Optional[str] = None
-    api_key: Optional[str] = None
-    extra_headers: Dict[str, str] = {}
+        model: Ollama model name (default: settings.OLLAMA_CHAT_MODEL)
 
-    if settings.OPENAI_API_KEY:
-        api_url = OPENAI_API_URL
-        api_key = settings.OPENAI_API_KEY
-    elif getattr(settings, "OPENROUTER_API_KEY", None):
-        api_url = OPENROUTER_API_URL
-        api_key = settings.OPENROUTER_API_KEY  # type: ignore[attr-defined]
-        # Recommended headers for OpenRouter (non‑critical if left as defaults)
-        extra_headers = {
-            "HTTP-Referer": "https://fyp-re-search-flow.local",
-            "X-Title": "ReSearch Flow",
-        }
-    else:
-        logging.error("No LLM API key configured (OPENAI_API_KEY or OPENROUTER_API_KEY)")
-        return None
-    
+    Returns:
+        Dictionary with structured summary sections, or None if the
+        text is too short. If Ollama is unreachable, returns a pure
+        extractive summary instead of failing.
+    """
     if not text or len(text.strip()) < 100:
         logging.warning("Text too short for summarization")
         return None
-    
+
+    text = _strip_references(text)
+
+    if not check_ollama_available():
+        logging.warning("Ollama unreachable, using extractive fallback summary")
+        return _extractive_fallback(text)
+
     try:
-        # Strip references/bibliography section — it adds tokens but no value for summarization
-        import re
-        ref_pattern = r'\n\s*(?:References|REFERENCES|Bibliography|BIBLIOGRAPHY|Works Cited|WORKS CITED)\s*\n'
-        ref_match = re.search(ref_pattern, text)
-        if ref_match:
-            original_len = len(text)
-            text = text[:ref_match.start()]
-            logging.info(f"Stripped references section: {original_len} -> {len(text)} chars (saved {original_len - len(text)} chars)")
-        
-        # Truncate text if still too long (GPT-4o-mini has 128K context window)
-        # Keep first ~100000 characters to leave room for prompt and response
-        max_chars = 100000
-        if len(text) > max_chars:
-            logging.info(f"Text too long ({len(text)} chars), truncating to {max_chars} chars")
-            text = text[:max_chars] + "\n\n[Content truncated for summarization...]"
-        
-        # Create a more detailed and structured prompt
-        prompt = f"""You are an expert academic researcher. Analyze the following research paper and provide a detailed, structured summary.
-
-IMPORTANT: Provide your response EXACTLY in this JSON format:
-{{
-  "problem_statement": "A clear description of the research problem or question addressed (2-4 sentences)",
-  "methodology": "Detailed description of the methods, approaches, techniques, or frameworks used (3-5 sentences)",
-  "key_findings": "The main results, discoveries, or findings from the research (3-6 sentences)",
-  "conclusion": "The key conclusions, implications, or contributions of the research (2-4 sentences)"
-}}
-
-Research Paper Content:
-{text}
-
-Now provide the JSON-formatted summary:"""
-
-        # Make request to chosen LLM API
-        headers = {
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json"
-        }
-        headers.update(extra_headers)
-        
-        payload = {
-            "model": model,
-            "messages": [
-                {
-                    "role": "system",
-                    "content": "You are an expert academic researcher. Summarize research papers clearly and accurately."
-                },
-                {
-                    "role": "user",
-                    "content": prompt
-                }
-            ],
-            "temperature": 0.2,  # Lower temperature for more focused summaries
-            "max_tokens": 2000,  # Allow longer responses for detailed summaries
-            "response_format": {"type": "json_object"}  # Request JSON format
-        }
-        
-        logging.info(f"Calling LLM API at {api_url} with model: {model}")
-        response = requests.post(api_url, headers=headers, json=payload, timeout=60)  # type: ignore[arg-type]
-        response.raise_for_status()
-        
-        result = response.json()
-        
-        # Extract the summary text from response
-        if "choices" in result and len(result["choices"]) > 0:
-            summary_text = result["choices"][0]["message"]["content"]
-            
-            # Try to parse as JSON first
-            try:
-                summary_json = json.loads(summary_text)
-                # Validate structure
-                if isinstance(summary_json, dict):
-                    summary = {
-                        "problem_statement": summary_json.get("problem_statement", "").strip(),
-                        "methodology": summary_json.get("methodology", "").strip(),
-                        "key_findings": summary_json.get("key_findings", "").strip(),
-                        "conclusion": summary_json.get("conclusion", "").strip()
-                    }
-                    # Validate all fields are present
-                    if all(v for v in summary.values()):
-                        logging.info("Successfully generated LLM summary (JSON format)")
-                        return summary
-                    else:
-                        logging.warning("LLM response missing some fields, attempting text parsing")
-            except json.JSONDecodeError:
-                logging.warning("LLM response not in JSON format, attempting text parsing")
-            
-            # Fallback to text parsing if JSON parsing fails
-            summary = _parse_llm_summary(summary_text)
-            
-            logging.info("Successfully generated LLM summary")
-            return summary
-        else:
-            logging.error(f"Unexpected API response format: {result}")
-            return None
-            
-    except requests.exceptions.RequestException as e:
-        logging.error(f"OpenAI API request failed: {str(e)}")
-        return None
+        chunks = _chunk_text(text, MAX_CHUNK_CHARS)
+        logging.info("Summarizing %d chunk(s) with local Ollama model", len(chunks))
+        llm = get_chat_model(model=model, temperature=0.2)
+        chunk_summaries = []
+        for chunk in chunks[:3]:
+            summary = _summarize_chunk(llm, chunk)
+            if summary:
+                chunk_summaries.append(summary)
+        if not chunk_summaries:
+            return _extractive_fallback(text)
+        if len(chunk_summaries) == 1:
+            return chunk_summaries[0]
+        merged = {field: " ".join(s.get(field, "") for s in chunk_summaries) for field in SUMMARY_FIELDS}
+        for field in SUMMARY_FIELDS:
+            merged[field] = merged[field].strip()[:2000]
+        if all(merged.values()):
+            return merged
+        return _extractive_fallback(text)
     except Exception as e:
-        logging.error(f"Error in LLM summarization: {str(e)}", exc_info=True)
-        return None
+        logging.error("Ollama summarization failed, using extractive fallback: %s", e, exc_info=True)
+        return _extractive_fallback(text)
+
+
+def _strip_references(text: str) -> str:
+    ref_pattern = r'\n\s*(?:References|REFERENCES|Bibliography|BIBLIOGRAPHY|Works Cited|WORKS CITED)\s*\n'
+    ref_match = re.search(ref_pattern, text)
+    if ref_match:
+        original_len = len(text)
+        text = text[:ref_match.start()]
+        logging.info("Stripped references section: %d -> %d chars", original_len, len(text))
+    return text
+
+
+def _chunk_text(text: str, max_chars: int) -> List[str]:
+    """Split text into chunks of at most max_chars, on paragraph breaks."""
+    if len(text) <= max_chars:
+        return [text]
+    chunks: List[str] = []
+    current = ""
+    for para in text.split("\n\n"):
+        if len(current) + len(para) + 2 > max_chars and current:
+            chunks.append(current)
+            current = para
+        else:
+            current = (current + "\n\n" + para) if current else para
+    if current:
+        chunks.append(current)
+    return chunks
+
+
+def _summarize_chunk(llm, chunk: str) -> Optional[Dict[str, str]]:
+    prompt = (
+        "You are an expert academic researcher. Analyze the following research paper "
+        "text and provide a detailed, structured summary.\n\n"
+        "IMPORTANT: Provide your response EXACTLY in this JSON format:\n"
+        "{\n"
+        '  "problem_statement": "A clear description of the research problem or question addressed (2-4 sentences)",\n'
+        '  "methodology": "Detailed description of the methods, approaches, techniques, or frameworks used (3-5 sentences)",\n'
+        '  "key_findings": "The main results, discoveries, or findings from the research (3-6 sentences)",\n'
+        '  "conclusion": "The key conclusions, implications, or contributions of the research (2-4 sentences)"\n'
+        "}\n\n"
+        f"Research Paper Content:\n{chunk}\n\n"
+        "Now provide the JSON-formatted summary:"
+    )
+    response = llm.invoke(prompt)
+    content = response.content if isinstance(response.content, str) else str(response.content)
+    try:
+        summary_json = json.loads(content)
+        if isinstance(summary_json, dict):
+            summary = {
+                field: str(summary_json.get(field, "")).strip() for field in SUMMARY_FIELDS
+            }
+            if all(summary.values()):
+                return summary
+    except json.JSONDecodeError:
+        logging.warning("Ollama summary not in JSON format, attempting text parsing")
+    return _parse_llm_summary(content)
+
+
+def _extractive_fallback(text: str) -> Dict[str, str]:
+    """Pure local fallback: first sentences of each detected section.
+
+    No model needed, so summarization never hard-fails when Ollama
+    is down. Quality is lower than an LLM summary; the caller logs it.
+    """
+    sections = _extract_sections(text)
+    if not sections:
+        sentences = _split_sentences(text)
+        chunk = max(1, len(sentences) // 4)
+        return {
+            "problem_statement": " ".join(sentences[:chunk]) or "Summary not available.",
+            "methodology": " ".join(sentences[chunk:chunk * 2]) or "Summary not available.",
+            "key_findings": " ".join(sentences[chunk * 2:chunk * 3]) or "Summary not available.",
+            "conclusion": " ".join(sentences[chunk * 3:]) or "Summary not available.",
+        }
+    return {
+        "problem_statement": _first_sentences(
+            sections.get("introduction", "") + " " + sections.get("abstract", ""), 4
+        ),
+        "methodology": _first_sentences(
+            sections.get("methodology", "") + " " + sections.get("method", ""), 4
+        ),
+        "key_findings": _first_sentences(
+            sections.get("results", "") + " " + sections.get("findings", ""), 4
+        ),
+        "conclusion": _first_sentences(
+            sections.get("conclusion", "") + " " + sections.get("discussion", ""), 4
+        ),
+    }
+
+
+def _extract_sections(text: str) -> Dict[str, str]:
+    sections: Dict[str, str] = {}
+    major = r"introduction|background|methodology|methods|related work|results|experiments|evaluation|discussion|conclusion|references|bibliography"
+    patterns = {
+        "abstract": rf"(?:abstract|summary)[\.\s:]+\n?(.*?)(?=\n\s*(?:{major}|keywords|1\.|2\.))",
+        "introduction": rf"(?:introduction|background|motivation)[\.\s:]+\n?(.*?)(?=\n\s*(?:2\.|methodology|method|related work|background))",
+        "methodology": rf"(?:methodology|methods?|approach)[\.\s:]+\n?(.*?)(?=\n\s*(?:3\.|4\.|results?|experiments?|evaluation))",
+        "results": rf"(?:results?|experiments?|evaluation|findings?)[\.\s:]+\n?(.*?)(?=\n\s*(?:discussion|conclusion|5\.|6\.))",
+        "conclusion": rf"(?:conclusion|conclusions?|summary|closing)[\.\s:]+\n?(.*?)(?=\n\s*(?:references|acknowledgments?|bibliography|$))",
+    }
+    for name, pattern in patterns.items():
+        match = re.search(pattern, text, re.IGNORECASE | re.DOTALL)
+        if match:
+            content = re.sub(r"\s+", " ", match.group(1).strip())
+            if len(content) > 50:
+                sections[name] = content
+    return sections
+
+
+def _split_sentences(text: str) -> List[str]:
+    sentences = re.split(r"(?<=[.!?])\s+", text)
+    return [s.strip() for s in sentences if s.strip() and len(s.strip()) > 10]
+
+
+def _first_sentences(text: str, n: int) -> str:
+    sentences = _split_sentences(text)
+    if not sentences:
+        return "Content not available for this section."
+    return " ".join(sentences[:n])
 
 
 def _parse_llm_summary(summary_text: str) -> Dict[str, str]:
     """
     Parse the LLM response into structured sections.
-    
-    Args:
-        summary_text: Raw response text from LLM
-    
-    Returns:
-        Dictionary with problem_statement, methodology, key_findings, conclusion
+    (Kept from the original llm_service.py; unchanged logic.)
     """
-    import re
-    
     summary = {
         "problem_statement": "",
         "methodology": "",
         "key_findings": "",
         "conclusion": ""
     }
-    
-    # Try JSON parsing first (in case it's JSON but not properly formatted)
+
     try:
-        # Try to extract JSON from markdown code blocks
         json_match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', summary_text, re.DOTALL)
         if json_match:
             summary_json = json.loads(json_match.group(1))
@@ -185,10 +217,9 @@ def _parse_llm_summary(summary_text: str) -> Dict[str, str]:
                 }
                 if all(v for v in summary.values()):
                     return summary
-    except:
+    except Exception:
         pass
-    
-    # Try to extract sections based on improved patterns
+
     patterns = {
         "problem_statement": [
             r'(?:problem\s+statement|problem|research\s+question)[:\-]?\s*(.+?)(?=\n\s*(?:methodology|method|approach|key\s+findings|2\.|conclusion|$))',
@@ -215,20 +246,18 @@ def _parse_llm_summary(summary_text: str) -> Dict[str, str]:
             r'4[\.\)]\s*conclusion[:\-]?\s*(.+?)$',
         ]
     }
-    
+
     for section, section_patterns in patterns.items():
         for pattern in section_patterns:
             match = re.search(pattern, summary_text, re.IGNORECASE | re.DOTALL | re.MULTILINE)
             if match:
                 extracted = match.group(1).strip()
-                # Clean up extracted text
-                extracted = re.sub(r'^["\']|["\']$', '', extracted)  # Remove quotes
-                extracted = re.sub(r'\s+', ' ', extracted)  # Normalize whitespace
-                if len(extracted) > 20:  # Only use if meaningful
+                extracted = re.sub(r'^["\']|["\']$', '', extracted)
+                extracted = re.sub(r'\s+', ' ', extracted)
+                if len(extracted) > 20:
                     summary[section] = extracted
                     break
-    
-    # Fallback: if sections are empty, try splitting by paragraphs
+
     if not all(v for v in summary.values()):
         paragraphs = [p.strip() for p in summary_text.split("\n\n") if p.strip() and len(p.strip()) > 30]
         if len(paragraphs) >= 4:
@@ -236,13 +265,10 @@ def _parse_llm_summary(summary_text: str) -> Dict[str, str]:
             summary["methodology"] = paragraphs[1] if not summary["methodology"] else summary["methodology"]
             summary["key_findings"] = paragraphs[2] if not summary["key_findings"] else summary["key_findings"]
             summary["conclusion"] = paragraphs[3] if not summary["conclusion"] else summary["conclusion"]
-    
-    # Final cleanup - ensure all fields have content
+
     for key in summary:
         summary[key] = summary[key].strip()
         if not summary[key] or len(summary[key]) < 10:
             summary[key] = f"Unable to extract {key.replace('_', ' ')} from the summary. Please try again."
-    
+
     return summary
-
-

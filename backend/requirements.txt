@@ -6,7 +6,6 @@ PyMuPDF
 pandas
 python-dotenv
 supabase
-serpapi
 fuzzywuzzy
 beautifulsoup4
 python-multipart
@@ -17,8 +16,12 @@ pydantic-settings
 neo4j==6.0.3
 py2neo==2021.2.4
 langchain
-langchain-openai
-langchain-pinecone
+langchain-ollama==1.1.0
+langchain-community
+langchain-classic
 langchain-text-splitters
-pinecone-client
+faiss-cpu==1.15.1
+rank-bm25==0.2.2
+reportlab
+cachetools
 upstash-redis

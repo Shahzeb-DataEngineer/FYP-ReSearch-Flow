@@ -1,7 +1,7 @@
 """
 Unified Chat Routes
 Handles paper Q&A conversations with Redis-backed session persistence.
-All chat goes through chat_service.py using RAG (Pinecone + LangChain).
+All chat goes through chat_service.py using local Ollama RAG (FAISS + BM25).
 """
 import asyncio
 import uuid
@@ -22,7 +22,7 @@ async def chat_ask(request_data: dict = Body(...)):
     """
     Ask a question about a research paper using RAG.
 
-    Uses Pinecone for vector storage, LangChain for retrieval + generation,
+    Uses local FAISS for vector storage, LangChain for retrieval + generation,
     and Upstash Redis for server-side conversation history.
 
     Request body:
@@ -34,7 +34,7 @@ async def chat_ask(request_data: dict = Body(...)):
             "session_id": "optional-uuid",                     # resume a session
             "paper_title": "Optional title",
             "paper_source": "arXiv",                           # arXiv|CORE|PMC|etc
-            "model": "gpt-4o-mini"                             # optional
+            "model": "qwen2.5:3b"                              # optional, Ollama model
         }
 
     Returns:
@@ -43,7 +43,7 @@ async def chat_ask(request_data: dict = Body(...)):
             "session_id": "uuid",
             "question": "...",
             "answer": "...",
-            "paper_id": "40-char hex hash of paper text (Pinecone namespace)"
+            "paper_id": "40-char hex hash of paper text"
         }
     """
     try:
@@ -57,7 +57,7 @@ async def chat_ask(request_data: dict = Body(...)):
         abstract = request_data.get("abstract", "")
         paper_title = request_data.get("paper_title") or request_data.get("title", "")
         paper_source = request_data.get("paper_source") or request_data.get("source", "")
-        model = request_data.get("model", "gpt-4o-mini")
+        model = request_data.get("model") or None
 
         # ── Resolve paper text ────────────────────────────────────────
         # Priority: pdf_text > pdf_url extraction > abstract
@@ -85,7 +85,7 @@ async def chat_ask(request_data: dict = Body(...)):
                 detail="Provide 'pdf_text', 'pdf_url', or 'abstract'",
             )
 
-        # ── Get answer via RAG (Pinecone + LangChain + Redis) ─────────
+        # ── Get answer via local Ollama RAG (FAISS + BM25 + Redis) ─────────
         # Run sync RAG in a thread so indexing + LLM work does not block the event loop.
         answer = await asyncio.to_thread(
             ask_about_paper_with_session,

@@ -1,7 +1,9 @@
 """
 Draft Generation Route
 Endpoint for generating structured research drafts from open-access papers.
-Includes figure extraction and GPT-4o Vision analysis.
+Draft text comes from the local Ollama model (zero cost). Figure
+extraction still runs; figure/vision analysis is optional and off by
+default (see draft_service.analyze_figure).
 """
 import time
 import logging
@@ -31,8 +33,10 @@ async def generate_draft_endpoint(request: DraftRequest):
 
     1. Downloads and extracts text from the PDF
     2. Extracts figures/images from the PDF
-    3. Analyzes each figure using GPT-4o Vision
-    4. Generates a comprehensive draft using GPT-4o
+    3. Analyzes each figure with the local vision model, if one is
+       configured (off by default; figures are otherwise skipped
+       with a note in the draft, not an error)
+    4. Generates a comprehensive draft using the local Ollama model
 
     Returns the draft sections and figure analyses.
     """
@@ -72,7 +76,8 @@ async def generate_draft_endpoint(request: DraftRequest):
         figures = extract_figures_from_pdf(pdf_content, max_figures=6)
         logger.info(f"Extracted {len(figures)} figures from PDF")
 
-        # Step 4: Analyze figures with GPT-4o Vision
+        # Step 4: Analyze figures with the local vision model, if
+        # configured (analyze_figure returns None when it is not)
         figure_analyses = []
         for i, fig in enumerate(figures):
             logger.info(f"Analyzing figure {i + 1}/{len(figures)} (page {fig['page_number']})")
@@ -95,6 +100,7 @@ async def generate_draft_endpoint(request: DraftRequest):
             title=request.title or "",
             authors=request.authors or "",
             abstract=request.abstract or "",
+            figures_found=len(figures),
         )
 
         if draft is None:
@@ -128,7 +134,7 @@ async def generate_draft_endpoint(request: DraftRequest):
             detail={
                 "error": "configuration_error",
                 "message": str(e),
-                "hint": "Please provide an OPENAI_API_KEY in the .env file."
+                "hint": "The local Ollama server is not reachable. Start Ollama and check OLLAMA_BASE_URL in the .env file."
             },
         )
     except HTTPException:

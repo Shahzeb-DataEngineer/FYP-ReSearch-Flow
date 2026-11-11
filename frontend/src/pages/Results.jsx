@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { searchAPI, savedArticlesAPI, arxivAPI, coreAPI, pmcAPI, semanticScholarAPI, googleScholarAPI, draftAPI, chatAPI, APIError } from '../services/api';
+import { searchAPI, savedArticlesAPI, arxivAPI, coreAPI, pmcAPI, semanticScholarAPI, crossrefAPI, europePmcAPI, draftAPI, chatAPI, APIError } from '../services/api';
 import {
   BookOpen, X, FileText, MessageSquare, Code, Download,
   ChevronDown, ChevronUp, Plus, Trash2, MoreVertical, ArrowUpDown, BarChart3, CheckSquare, Network,
@@ -34,13 +34,13 @@ const PaperListItem = ({ paper, isSelected, onClick }) => {
   const isCore = allSources.includes('CORE') || paper.core_id;
   const isPmc = allSources.includes('PMC') || paper.pmc_id;
   const isOpenAlex = allSources.includes('OpenAlex');
-  const isGoogleScholar = allSources.includes('Google Scholar') || paper.google_scholar_id;
-  const isSemanticScholar = allSources.includes('Semantic Scholar') || (paper.semantic_scholar_id && !isArxiv && !isCore && !isPmc && !isOpenAlex && !isGoogleScholar);
+  const isCrossref = allSources.includes('Crossref') || paper.crossref_id;
+  const isEuropePmc = allSources.includes('Europe PMC') || paper.europe_pmc_id || paper.pmcid;
+  const isSemanticScholar = allSources.includes('Semantic Scholar') || (paper.semantic_scholar_id && !isArxiv && !isCore && !isPmc && !isOpenAlex && !isCrossref && !isEuropePmc);
   const arxivId = paper.arxiv_id;
   const coreId = paper.core_id;
   const pmcId = paper.pmc_id;
   const semanticScholarId = paper.semantic_scholar_id || paper.paperId;
-  const googleScholarId = paper.google_scholar_id;
   const publishedDate = paper.published_date ? new Date(paper.published_date).getFullYear() : null;
   const year = paper.year || publishedDate;
   const venue = paper.venue && paper.venue !== 'N/A' ? paper.venue : null;
@@ -65,7 +65,8 @@ const PaperListItem = ({ paper, isSelected, onClick }) => {
           {isCore && <span className="font-mono text-xs bg-blue-100 px-1.5 py-0.5 rounded text-blue-800 mr-1">CORE</span>}
           {isPmc && <span className="font-mono text-xs bg-green-100 px-1.5 py-0.5 rounded text-green-800 mr-1">{pmcId ? `PMC:${pmcId}` : 'PMC'}</span>}
           {isSemanticScholar && <span className="font-mono text-xs bg-purple-100 px-1.5 py-0.5 rounded text-purple-800 mr-1">Semantic Scholar</span>}
-          {isGoogleScholar && <span className="font-mono text-xs bg-orange-100 px-1.5 py-0.5 rounded text-orange-800 mr-1">Google Scholar</span>}
+          {isCrossref && <span className="font-mono text-xs bg-teal-100 px-1.5 py-0.5 rounded text-teal-800 mr-1">Crossref</span>}
+          {isEuropePmc && <span className="font-mono text-xs bg-pink-100 px-1.5 py-0.5 rounded text-pink-800 mr-1">Europe PMC</span>}
           {year && <span className="ml-1">{year}</span>}
           {authors && <span className="ml-2">{authors}</span>}
           {venue && <span className="ml-2"> · {venue}</span>}
@@ -465,23 +466,23 @@ const DetailPanel = ({ paper, onClose, summaryJobs, onStartSummarize, isSplitScr
   const abstractPreview = abstract && abstract.length > 300 ? abstract.substring(0, 300) + '...' : abstract;
 
   // Derive summary state from the shared summaryJobs map
-  const paperId = paper.paperId || paper.id || paper.arxiv_id || paper.core_id || paper.pmc_id || paper.semantic_scholar_id || paper.google_scholar_id;
+  const paperId = paper.paperId || paper.id || paper.arxiv_id || paper.core_id || paper.pmc_id || paper.semantic_scholar_id || paper.crossref_id || paper.europe_pmc_id;
   const currentJob = summaryJobs?.get(paperId);
   const summarizing = currentJob?.status === 'loading';
   const summary = currentJob?.status === 'done' ? currentJob.summary : null;
 
-  const paperIdForSaved = paper.paperId || paper.id || paper.arxiv_id || paper.core_id || paper.pmc_id || paper.semantic_scholar_id || paper.google_scholar_id;
+  const paperIdForSaved = paper.paperId || paper.id || paper.arxiv_id || paper.core_id || paper.pmc_id || paper.semantic_scholar_id || paper.crossref_id || paper.europe_pmc_id;
   const isArxiv = paper.source === 'arXiv' || paper.arxiv_id;
   const isCore = paper.source === 'CORE' || paper.core_id;
   const isPmc = paper.source === 'PMC' || paper.pmc_id;
   const isOpenAlex = paper.source === 'OpenAlex';
-  const isGoogleScholar = paper.source === 'Google Scholar' || paper.google_scholar_id;
-  const isSemanticScholar = paper.source === 'Semantic Scholar' || (paper.semantic_scholar_id && !isArxiv && !isCore && !isPmc && !isOpenAlex && !isGoogleScholar);
+  const isCrossref = paper.source === 'Crossref' || paper.crossref_id;
+  const isEuropePmc = paper.source === 'Europe PMC' || paper.europe_pmc_id || paper.pmcid;
+  const isSemanticScholar = paper.source === 'Semantic Scholar' || (paper.semantic_scholar_id && !isArxiv && !isCore && !isPmc && !isOpenAlex && !isCrossref && !isEuropePmc);
   const arxivId = paper.arxiv_id;
   const coreId = paper.core_id;
   const pmcId = paper.pmc_id;
   const semanticScholarId = paper.semantic_scholar_id || paper.paperId;
-  const googleScholarId = paper.google_scholar_id;
   const pdfUrlForExtract = paper.pdf_url || paper.openAccessPdf || pdfUrl;
 
   // Reset PDF content, chat, and draft when paper changes
@@ -674,7 +675,7 @@ const DetailPanel = ({ paper, onClose, summaryJobs, onStartSummarize, isSplitScr
   const handleSummarize = () => {
     // Check if PDF is available for extraction
     if (!pdfUrlForExtract) {
-      if ((isSemanticScholar || isGoogleScholar) && abstract) {
+      if ((isSemanticScholar || isCrossref || isEuropePmc) && abstract) {
         showToast('PDF not available for this paper. Summarization requires PDF access.', 'info');
       } else {
         showToast('No PDF URL available for this paper', 'error');
@@ -751,7 +752,7 @@ const DetailPanel = ({ paper, onClose, summaryJobs, onStartSummarize, isSplitScr
 
       // Determine paper source for metadata
       const paperSource = isArxiv ? 'arXiv' : isCore ? 'CORE' : isPmc ? 'PMC'
-        : isGoogleScholar ? 'Google Scholar' : isSemanticScholar ? 'Semantic Scholar' : 'Unknown';
+        : isCrossref ? 'Crossref' : isEuropePmc ? 'Europe PMC' : isSemanticScholar ? 'Semantic Scholar' : 'Unknown';
 
       // Use unified chatAPI with Redis session persistence
       const response = await chatAPI.askQuestion(userQuestion, {
@@ -909,8 +910,8 @@ const DetailPanel = ({ paper, onClose, summaryJobs, onStartSummarize, isSplitScr
             Notes
           </button>
         )}
-        {/* Show summarize button if: PDF available OR (Semantic Scholar/Google Scholar paper with abstract) */}
-        {(pdfUrlForExtract || (isSemanticScholar && abstract) || (isGoogleScholar && abstract)) && (
+        {/* Show summarize button if: PDF available OR (Semantic Scholar/Crossref/Europe PMC paper with abstract) */}
+        {(pdfUrlForExtract || (isSemanticScholar && abstract) || (isCrossref && abstract) || (isEuropePmc && abstract)) && (
           <>
             <button
               onClick={handleSummarize}
@@ -919,7 +920,7 @@ const DetailPanel = ({ paper, onClose, summaryJobs, onStartSummarize, isSplitScr
                 ? 'bg-gray-100 hover:bg-gray-200 text-black border border-gray-300'
                 : 'bg-black hover:bg-gray-800 text-white'
                 } disabled:opacity-50 disabled:cursor-not-allowed`}
-              title={summary ? 'Summary already generated' : pdfUrlForExtract ? 'Extract PDF and generate AI summary (GPT-4)' : ((isSemanticScholar || isGoogleScholar) && abstract ? 'PDF not available - only abstract available' : 'Extract PDF and generate AI summary')}
+              title={summary ? 'Summary already generated' : pdfUrlForExtract ? 'Extract PDF and generate AI summary (local AI)' : ((isSemanticScholar || isCrossref || isEuropePmc) && abstract ? 'PDF not available - only abstract available' : 'Extract PDF and generate AI summary')}
             >
               {summarizing ? (
                 <>
@@ -1695,7 +1696,7 @@ export default function Results() {
    * so closing the panel does NOT cancel the operation.
    */
   const startBackgroundSummarize = useCallback(async (paper) => {
-    const id = paper.paperId || paper.id || paper.arxiv_id || paper.core_id || paper.pmc_id || paper.semantic_scholar_id || paper.google_scholar_id;
+    const id = paper.paperId || paper.id || paper.arxiv_id || paper.core_id || paper.pmc_id || paper.semantic_scholar_id || paper.crossref_id || paper.europe_pmc_id;
     if (!id) return;
 
     // Don't start if already loading or done
@@ -1722,12 +1723,14 @@ export default function Results() {
     const isCore = paper.source === 'CORE' || paper.core_id;
     const isPmc = paper.source === 'PMC' || paper.pmc_id;
     const isSemanticScholar = paper.source === 'Semantic Scholar' || (paper.semantic_scholar_id && !isArxiv && !isCore && !isPmc);
-    const isGoogleScholar = paper.source === 'Google Scholar' || paper.google_scholar_id;
+    const isCrossref = paper.source === 'Crossref' || paper.crossref_id;
+    const isEuropePmc = paper.source === 'Europe PMC' || paper.europe_pmc_id || paper.pmcid;
     const pdfUrl = paper.pdf_url || paper.openAccessPdf || (paper.url && paper.url.toLowerCase().endsWith('.pdf') ? paper.url : null);
     const arxivId = paper.arxiv_id;
     const title = paper.title || "";
     const abstract = paper.abstract || paper.snippet || "";
     const pmcId = paper.pmc_id || null;
+    const doi = paper.doi || null;
 
     try {
       let response;
@@ -1739,8 +1742,10 @@ export default function Results() {
         response = await pmcAPI.summarizePaper(pdfUrl, pmcId, title, abstract);
       } else if (isSemanticScholar) {
         response = await semanticScholarAPI.summarizePaper(pdfUrl, title, abstract);
-      } else if (isGoogleScholar) {
-        response = await googleScholarAPI.summarizePaper(pdfUrl, title, abstract);
+      } else if (isCrossref) {
+        response = await crossrefAPI.summarizePaper(pdfUrl, title, abstract, doi);
+      } else if (isEuropePmc) {
+        response = await europePmcAPI.summarizePaper(pdfUrl, title, abstract, doi);
       } else {
         response = await semanticScholarAPI.summarizePaper(pdfUrl, title, abstract);
       }
@@ -1998,7 +2003,8 @@ export default function Results() {
         { name: 'CORE', promise: coreAPI.searchPapers(topic, 20).catch(err => ({ status: 'error', error: err })) },
         { name: 'PMC', promise: pmcAPI.searchPapers(topic, 20).catch(err => ({ status: 'error', error: err })) },
         { name: 'Semantic Scholar', promise: semanticScholarAPI.searchPapers(topic, 20).catch(err => ({ status: 'error', error: err })) },
-        { name: 'Google Scholar', promise: googleScholarAPI.searchPapers(topic, 20).catch(err => ({ status: 'error', error: err })) },
+        { name: 'Crossref', promise: crossrefAPI.searchPapers(topic, 20).catch(err => ({ status: 'error', error: err })) },
+        { name: 'Europe PMC', promise: europePmcAPI.searchPapers(topic, 20).catch(err => ({ status: 'error', error: err })) },
       ];
 
       // Check cache result first
@@ -2029,9 +2035,9 @@ export default function Results() {
       // Process each API result as it arrives
       const processResult = (name, result) => {
         completedCount++;
-        // Each of 6 sources contributes ~15.8%, starting from 5%
+        // Each of 7 sources contributes ~13.6%, starting from 5%
         setFetchProgress(Math.min(5 + Math.round((completedCount / apiCalls.length) * 90), 95));
-        console.log(`[${completedCount}/6] ${name} completed:`, {
+        console.log(`[${completedCount}/7] ${name} completed:`, {
           status: result?.status,
           paperCount: result?.papers?.length || 0,
           hasError: !!result?.error,
