@@ -8,6 +8,9 @@ from src.app.api.v1.routes.pmc import router as pmc_router
 from src.app.api.v1.routes.semantic_scholar import router as semantic_scholar_router
 from src.app.api.v1.routes.crossref import router as crossref_router
 from src.app.api.v1.routes.europe_pmc import router as europe_pmc_router
+from src.app.api.v1.routes.pubmed import router as pubmed_router
+from src.app.api.v1.routes.doaj import router as doaj_router
+from src.app.api.v1.routes.unpaywall import router as unpaywall_router
 from src.app.api.v1.routes.trends import router as trends_router
 from src.app.api.v1.routes.draft import router as draft_router
 from src.app.api.v1.routes.chat import router as chat_router
@@ -23,6 +26,9 @@ api_router.include_router(pmc_router, prefix="/pmc", tags=["PMC Search & Summari
 api_router.include_router(semantic_scholar_router, prefix="/semantic-scholar", tags=["Semantic Scholar Search & Summarization"])
 api_router.include_router(crossref_router, prefix="/crossref", tags=["Crossref Search & Summarization"])
 api_router.include_router(europe_pmc_router, prefix="/europe-pmc", tags=["Europe PMC Search & Summarization"])
+api_router.include_router(pubmed_router, prefix="/pubmed", tags=["PubMed Search & Summarization"])
+api_router.include_router(doaj_router, prefix="/doaj", tags=["DOAJ Search & Summarization"])
+api_router.include_router(unpaywall_router, prefix="/unpaywall", tags=["Unpaywall Search & Summarization"])
 api_router.include_router(trends_router, prefix="/trends", tags=["Trending Topics"])
 api_router.include_router(draft_router, prefix="/draft", tags=["Draft Generation"])
 api_router.include_router(chat_router, prefix="/chat", tags=["Paper Chat (RAG)"])
