@@ -33,8 +33,8 @@ ReSearch Flow provides an **end-to-end research assistant** that:
 ## Key Features
 
 ### Multi-Source Search
-- OpenAlex, arXiv, CORE, PMC, Semantic Scholar, Crossref, Europe PMC  
-- Parallel API calls with progressive loading  
+- OpenAlex, arXiv, CORE, PMC, Semantic Scholar, Crossref, Europe PMC, PubMed, DOAJ, Unpaywall (DOI lookup for open-access PDF links)  
+- Per-source search with progressive loading; service-level dedup by identifiers (PMCID, DOI, title)  
 
 ### AI Summarization
 - Local Ollama model (qwen2.5:7b on a 16 GB laptop, qwen2.5:3b on low-RAM machines)  
@@ -52,7 +52,7 @@ ReSearch Flow provides an **end-to-end research assistant** that:
 
 ### Draft Generation
 - AI-generated structured drafts  
-- Uses both text + figures (Vision AI)  
+- Text-based only by default; figure analysis is off unless a local vision model is configured (`OLLAMA_VISION_MODEL`, e.g. `llava:7b`)  
 
 ### User Workspace
 - Save articles  
@@ -109,8 +109,9 @@ External APIs (OpenAlex, arXiv, etc.)
 
 This project uses no paid APIs. LLM work runs on a local Ollama model,
 search uses free sources (OpenAlex, arXiv, CORE, PMC, Semantic Scholar,
-Crossref, Europe PMC), and vector search uses local FAISS. Google Scholar
-was removed because it needed the paid SerpAPI service.
+Crossref, Europe PMC, PubMed, DOAJ, Unpaywall), and vector search uses
+local FAISS. Google Scholar was removed because it needed the paid
+SerpAPI service.
 
 To run the AI features:
 
@@ -191,13 +192,18 @@ The system uses a hybrid approach:
 
 ## Results & Performance
 
-- ⚡ First results: ~1.8 seconds  
-- 🔁 Full results: 6–9 seconds  
-- 🧹 Deduplication: ~38% reduction  
-- 🤖 RAG Accuracy:  
-  - 74% Correct  
-  - 18% Partial  
-  - 8% Incorrect  
+No performance numbers are claimed here: the figures in earlier
+versions of this README (first results ~1.8s, full results 6-9s,
+~38% dedup reduction, RAG 74% / 18% / 8%) were never measured
+against this codebase and have been removed. The only measured
+results are in `docs/evaluation.md`, a fixed 10-question run on
+2026-11-12 with the local Ollama model.
+
+Measured latency on a CPU-only machine (no GPU, qwen2.5:3b) is
+honest but slow: a structured summary took ~95s, a RAG answer
+~36s, and a full draft 4-10 minutes. Search itself is fast
+(under ~3s per source). A laptop with a GPU, or the 7B model
+(`qwen2.5:7b`), will be much faster.  
 
 ---
 
@@ -205,15 +211,25 @@ The system uses a hybrid approach:
 
 - Supabase Auth (JWT-based)  
 - Google OAuth support  
-- Row-Level Security (RLS)  
+- The `/saved-searches` page redirects to login when there is no
+  session; search and results are intentionally public. The backend
+  has no user-scoped auth yet: write endpoints call Supabase
+  directly from the frontend, and only the destructive
+  `DELETE /chat/history` route accepts an optional API key
+  (`BACKEND_API_KEY`). A proper backend Supabase-JWT check is
+  still open work.  
 
 ---
 
 ## Testing
 
-- Unit testing for all core modules  
-- Integration testing for full workflows  
-- Manual evaluation with real academic datasets  
+- Backend unit tests: 24 stdlib `unittest` tests covering dedup
+  helpers and paper-source parsing with fixtures only (no network,
+  no Ollama). Run them from `backend/` with
+  `python -m unittest discover -s src/app/tests -v`.
+- A fixed 10-question live evaluation against the real backend and
+  local Ollama is recorded in `docs/evaluation.md`.
+- No integration or end-to-end test suite exists yet.  
 
 ---
 
@@ -227,8 +243,9 @@ The system uses a hybrid approach:
 
 ## Future Work
 
-- Semantic vector search (Sentence-BERT)  
-- Multi-modal RAG (text + figures)  
+- Backend Supabase-JWT auth (scope chat sessions to the user)  
+- Larger evaluation set and a GPU run for latency comparison  
+- Multi-modal RAG (text + figures, once a vision model is configured)  
 - Chrome extension  
 - Collaborative research workspace  
 - Mobile app  
