@@ -25,6 +25,7 @@ from src.app.services import (
     crossref_service,
     doaj_service,
     europe_pmc_service,
+    pdf_service,
     pubmed_service,
     unpaywall_service,
 )
@@ -374,6 +375,137 @@ class TestEuropePmcParsing(unittest.TestCase):
         # Same DOI, different PMCID: still one paper.
         self.assertEqual(len(papers), 1)
         self.assertEqual(papers[0]["pmcid"], "PMC999")
+
+
+class TestEuropePmcFullTextXml(unittest.TestCase):
+    """Europe PMC PDF links are Cloudflare-blocked (HTTP 403), so
+    get_pdf_text_from_url must fetch the same article's full text as
+    JATS XML from the Europe PMC REST API instead. No network: every
+    requests.get call is mocked."""
+
+    JATS_XML = b"""<?xml version="1.0" encoding="UTF-8"?>
+<article><front><article-meta><title-group>
+<article-title>Test Paper Title</article-title>
+</title-group></article-meta></front>
+<body><sec><title>Introduction</title>
+<p>First body sentence about transformers.</p>
+<p>Second body sentence with a <italic>number</italic> 42.</p>
+<p>Third body sentence describing the study design in more detail, with
+enough words to pass the minimum-length check for extracted full text.</p>
+</sec></body></article>"""
+
+    def _xml_response(self):
+        class FakeResponse:
+            content = TestEuropePmcFullTextXml.JATS_XML
+            headers = {"Content-Type": "application/xml"}
+
+            def raise_for_status(self):
+                pass
+
+        return FakeResponse()
+
+    def _pdf_bytes(self):
+        import fitz
+
+        doc = fitz.open()
+        page = doc.new_page()
+        page.insert_text((72, 72), "Fallback PDF text " * 10)
+        data = doc.tobytes()
+        doc.close()
+        return data
+
+    def test_render_url_uses_fulltext_xml(self):
+        with patch.object(
+            pdf_service.requests, "get", return_value=self._xml_response()
+        ) as mock_get:
+            text, error = pdf_service.get_pdf_text_from_url(
+                "https://europepmc.org/articles/PMC13576103?pdf=render"
+            )
+        self.assertIsNone(error)
+        self.assertIn("First body sentence about transformers", text)
+        self.assertIn("Second body sentence with a number 42", text)
+        self.assertNotIn("<", text)
+        # Front matter (the title) must not leak into the body text.
+        self.assertNotIn("Test Paper Title", text)
+        mock_get.assert_called_once()
+        called_url = mock_get.call_args.args[0]
+        self.assertEqual(
+            called_url,
+            "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC13576103/fullTextXML",
+        )
+
+    def test_plain_article_url_also_uses_fulltext_xml(self):
+        with patch.object(
+            pdf_service.requests, "get", return_value=self._xml_response()
+        ) as mock_get:
+            text, error = pdf_service.get_pdf_text_from_url(
+                "https://europepmc.org/articles/PMC999"
+            )
+        self.assertIsNone(error)
+        self.assertIn("First body sentence about transformers", text)
+        self.assertIn("PMC999/fullTextXML", mock_get.call_args.args[0])
+
+    def test_xml_failure_falls_back_to_pdf_download(self):
+        import requests
+
+        class NotFoundResponse:
+            status_code = 404
+            content = b""
+            headers = {"Content-Type": "text/html"}
+
+            def raise_for_status(self):
+                error = requests.exceptions.HTTPError("404 Not Found")
+                error.response = self
+                raise error
+
+        class PdfResponse:
+            content = None  # set per-instance below
+            headers = {"Content-Type": "application/pdf"}
+
+            def raise_for_status(self):
+                pass
+
+        pdf_response = PdfResponse()
+        pdf_response.content = self._pdf_bytes()
+        calls = []
+
+        def fake_get(url, **kwargs):
+            calls.append(url)
+            if "fullTextXML" in url:
+                return NotFoundResponse()
+            return pdf_response
+
+        with patch.object(pdf_service.requests, "get", side_effect=fake_get):
+            text, error = pdf_service.get_pdf_text_from_url(
+                "https://europepmc.org/articles/PMC999?pdf=render"
+            )
+        self.assertIsNone(error)
+        self.assertIn("Fallback PDF text", text)
+        self.assertTrue(any("fullTextXML" in url for url in calls))
+
+    def test_non_europe_pmc_url_never_calls_fulltext_api(self):
+        class PdfResponse:
+            content = None
+            headers = {"Content-Type": "application/pdf"}
+
+            def raise_for_status(self):
+                pass
+
+        pdf_response = PdfResponse()
+        pdf_response.content = self._pdf_bytes()
+        calls = []
+
+        def fake_get(url, **kwargs):
+            calls.append(url)
+            return pdf_response
+
+        with patch.object(pdf_service.requests, "get", side_effect=fake_get):
+            text, error = pdf_service.get_pdf_text_from_url(
+                "https://arxiv.org/pdf/1706.03762"
+            )
+        self.assertIsNone(error)
+        self.assertIn("Fallback PDF text", text)
+        self.assertFalse(any("fullTextXML" in url for url in calls))
 
 
 if __name__ == "__main__":
