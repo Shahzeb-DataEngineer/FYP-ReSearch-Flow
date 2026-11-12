@@ -1,6 +1,8 @@
-from pydantic_settings import BaseSettings, SettingsConfigDict
+import json
+from pydantic import field_validator
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 from pathlib import Path
-from typing import Optional
+from typing import Annotated, Optional
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
 
@@ -37,7 +39,34 @@ class Settings(BaseSettings):
     NEO4J_USER: str = "neo4j"
     NEO4J_PASSWORD: str = ""
     # CORS Configuration
-    CORS_ORIGINS: list[str] = ["*"]
+    # Locked down to the local frontend origins by default. Override
+    # with a comma-separated CORS_ORIGINS env var (a JSON list also
+    # works). "*" is no longer the default: with allow_credentials=True
+    # a wildcard origin is rejected by browsers anyway, and it let any
+    # site call the API from a logged-in browser.
+    CORS_ORIGINS: Annotated[list[str], NoDecode] = [
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ]
+
+    @field_validator("CORS_ORIGINS", mode="before")
+    @classmethod
+    def _split_cors_origins(cls, value):
+        if isinstance(value, str):
+            value = value.strip()
+            if value.startswith("["):
+                return json.loads(value)
+            return [origin.strip() for origin in value.split(",") if origin.strip()]
+        return value
+
+    # Optional shared key for state-changing backend routes
+    # (X-API-Key header). When unset, local dev stays open and the
+    # frontend flow is unchanged. When set, write routes reject
+    # requests without the matching header. This is a stopgap, not
+    # user auth: see src/app/core/auth.py.
+    BACKEND_API_KEY: Optional[str] = None
 
     model_config = SettingsConfigDict(
         env_file=[str(BASE_DIR / ".env"), str(BASE_DIR.parent / ".env")],

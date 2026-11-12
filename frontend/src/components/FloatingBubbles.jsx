@@ -12,18 +12,27 @@ import { X, CheckCircle, Loader2, AlertCircle, MessageSquare, ChevronDown, Chevr
 const FloatingBubbles = ({ summaryJobs, onBubbleClick, onDismiss }) => {
   const [collapsed, setCollapsed] = useState(false);
   const [dismissedIds, setDismissedIds] = useState(new Set());
+  const [, setTick] = useState(0);
 
   // Convert map to array, filter out dismissed, sort by startedAt (newest first)
   const jobs = Array.from(summaryJobs.values())
     .filter(job => !dismissedIds.has(job.paperId))
     .sort((a, b) => b.startedAt - a.startedAt);
 
-  // Nothing to show
-  if (jobs.length === 0) return null;
-
   const loadingCount = jobs.filter(j => j.status === 'loading').length;
   const doneCount = jobs.filter(j => j.status === 'done').length;
   const errorCount = jobs.filter(j => j.status === 'error').length;
+
+  // Auto-refresh elapsed time for loading jobs
+  useEffect(() => {
+    if (loadingCount > 0) {
+      const interval = setInterval(() => setTick(t => t + 1), 1000);
+      return () => clearInterval(interval);
+    }
+  }, [loadingCount]);
+
+  // Nothing to show
+  if (jobs.length === 0) return null;
 
   const MAX_VISIBLE = 5;
   const visibleJobs = collapsed ? [] : jobs.slice(0, MAX_VISIBLE);
@@ -46,15 +55,6 @@ const FloatingBubbles = ({ summaryJobs, onBubbleClick, onDismiss }) => {
     const minutes = Math.floor(seconds / 60);
     return `${minutes}m ${seconds % 60}s`;
   };
-
-  // Auto-refresh elapsed time for loading jobs
-  const [, setTick] = useState(0);
-  useEffect(() => {
-    if (loadingCount > 0) {
-      const interval = setInterval(() => setTick(t => t + 1), 1000);
-      return () => clearInterval(interval);
-    }
-  }, [loadingCount]);
 
   return (
     <div
