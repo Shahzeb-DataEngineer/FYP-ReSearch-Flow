@@ -160,7 +160,27 @@ def clean_extracted_text(text: str, preserve_all: bool = True) -> str:
 def get_pdf_text_from_url(pdf_url: str, max_pages: Optional[int] = None) -> Tuple[Optional[str], Optional[str]]:
     """
     Download PDF from URL and extract text.
+
+    Europe PMC special case: the PDF links Europe PMC returns
+    (https://europepmc.org/articles/PMC...?pdf=render) are served from
+    the europepmc.org website, which blocks automated requests with a
+    Cloudflare challenge (HTTP 403, "Just a moment..."), so the PDF
+    can never be downloaded that way. The same full text is available
+    without any bot protection from the Europe PMC REST API as JATS
+    XML, so for Europe PMC article URLs we fetch and convert that
+    XML first. If the XML fetch fails we fall through to the normal
+    PDF download, so other sources are unaffected.
     """
+    pmcid = _europe_pmc_id_from_url(pdf_url)
+    if pmcid:
+        full_text, xml_error = _fetch_europe_pmc_full_text(pmcid)
+        if full_text is not None:
+            return (full_text, None)
+        logging.warning(
+            f"Europe PMC full-text XML unavailable for {pmcid} "
+            f"({xml_error}); falling back to PDF download"
+        )
+
     pdf_content, download_error = download_pdf(pdf_url)
     if pdf_content is None:
         return (None, download_error)
@@ -170,5 +190,82 @@ def get_pdf_text_from_url(pdf_url: str, max_pages: Optional[int] = None) -> Tupl
         return (None, "Failed to extract sufficient text from PDF.")
     
     return (extracted_text, None)
+
+
+# ---------------------------------------------------------------------------
+# Europe PMC full-text XML fallback
+# ---------------------------------------------------------------------------
+
+EUROPE_PMC_ARTICLE_RE = re.compile(
+    r"europepmc\.org/articles/(PMC\d+)", re.IGNORECASE
+)
+EUROPE_PMC_FULLTEXT_XML_URL = (
+    "https://www.ebi.ac.uk/europepmc/webservices/rest/{pmcid}/fullTextXML"
+)
+
+
+def _europe_pmc_id_from_url(url: str) -> Optional[str]:
+    """Return the PMCID if the URL is a Europe PMC article page/PDF link."""
+    match = EUROPE_PMC_ARTICLE_RE.search(url or "")
+    return match.group(1).upper() if match else None
+
+
+def _text_from_jats_xml(xml_bytes: bytes) -> str:
+    """Convert JATS full-text XML to plain text.
+
+    Uses the <body> element when present (the article text without the
+    front-matter metadata); otherwise the whole document. Element text
+    and tails are joined, then whitespace is collapsed.
+    """
+    import xml.etree.ElementTree as ET
+
+    root = ET.fromstring(xml_bytes)
+    body = root.find(".//body")
+    scope = body if body is not None else root
+
+    parts = []
+
+    def collect(element):
+        if element.text:
+            parts.append(element.text)
+        for child in element:
+            collect(child)
+            if child.tail:
+                parts.append(child.tail)
+
+    collect(scope)
+    text = re.sub(r"\s+", " ", "".join(parts)).strip()
+    return text
+
+
+def _fetch_europe_pmc_full_text(pmcid: str) -> Tuple[Optional[str], Optional[str]]:
+    """Fetch an open-access article's full text from Europe PMC as XML.
+
+    Returns (text, None) on success, or (None, error_message).
+    """
+    try:
+        url = EUROPE_PMC_FULLTEXT_XML_URL.format(pmcid=pmcid)
+        response = requests.get(
+            url,
+            headers={"User-Agent": "ReSearch-Flow/1.0"},
+            timeout=30,
+        )
+        response.raise_for_status()
+        text = _text_from_jats_xml(response.content)
+        if not text or len(text) < 100:
+            return (None, "Full-text XML contained too little text.")
+        logging.info(
+            f"Extracted Europe PMC full text via XML for {pmcid}: "
+            f"{len(text)} characters"
+        )
+        return (text, None)
+    except requests.exceptions.HTTPError as e:
+        status = e.response.status_code if e.response is not None else "?"
+        if status == 404:
+            return (None, "No full-text XML available for this article.")
+        return (None, f"Full-text XML request failed (HTTP {status}).")
+    except Exception as e:
+        logging.error(f"Error fetching Europe PMC full text for {pmcid}: {str(e)}")
+        return (None, f"Failed to fetch full-text XML: {str(e)}")
 
 

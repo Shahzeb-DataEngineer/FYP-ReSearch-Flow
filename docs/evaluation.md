@@ -155,6 +155,20 @@ All match the abstract.
   summaries from the abstract. Note S4's Europe PMC PDF URL
   (europepmc.org/articles/PMC13576103?pdf=render) failed to extract even though
   the article is open access; PDF extraction for that host is worth investigating.
+
+  Follow-up (2026-11-12): root cause found. The europepmc.org website blocks
+  automated requests with a Cloudflare challenge (HTTP 403, "Just a moment..."),
+  so the `?pdf=render` link can never be downloaded directly. The same full
+  text is served without bot protection by the Europe PMC REST API as JATS XML
+  (`/rest/{PMCID}/fullTextXML`). `pdf_service.get_pdf_text_from_url` now fetches
+  that XML first for europepmc.org article URLs and converts the `<body>` to
+  plain text, falling back to the normal PDF download if the XML is unavailable.
+  Verified live on the S4 paper: extract returned HTTP 200 with 54,556 chars of
+  real full text, and summarize returned HTTP 200 in 336.4 s with
+  `fallback: false` and 54,556 chars of context (the summary itself was only
+  partly usable: key findings and limitations were accurate, but
+  problem_statement and methodology came back as "Unable to extract...", so the
+  full-text summarization quality still needs work). Unit tests are now 28/28.
 - Search is fast (1.0-2.8 s per source) and not the bottleneck.
 - Backend unit tests: `python -m unittest discover -s src/app/tests -v`
   ran 24 tests, all passed (0.019 s).
