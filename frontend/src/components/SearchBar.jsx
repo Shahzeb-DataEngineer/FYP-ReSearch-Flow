@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { Search, Clock, TrendingUp, X, Sparkles, Flame, Loader2 } from 'lucide-react';
 import { useSearchHistory } from '../hooks/useSearchHistory';
 
@@ -12,7 +11,7 @@ const SearchBar = ({ onSearch, initialValue = '', placeholder = "Search topics, 
     const inputRef = useRef(null);
     const dropdownRef = useRef(null);
     const {
-        getSuggestions, recordSearch, searchHistory, clearHistory,
+        getSuggestions, recordSearch, clearHistory,
         trendingTopics, trendingLoading, fetchTrendingTopics
     } = useSearchHistory();
 
@@ -145,16 +144,6 @@ const SearchBar = ({ onSearch, initialValue = '', placeholder = "Search topics, 
     const containerPadding = size === "small" ? "px-4 py-2" : "px-6 py-4";
     const iconSize = size === "small" ? "w-5 h-5" : "w-6 h-6";
     const fontSize = size === "small" ? "text-base" : "text-lg";
-
-    // Icon for each item type
-    const getItemIcon = (type) => {
-        switch (type) {
-            case 'history': return <Clock className="w-4 h-4 text-gray-400 flex-shrink-0" />;
-            case 'trending_topic': return <Flame className="w-4 h-4 text-orange-500 flex-shrink-0" />;
-            case 'hot_paper': return <TrendingUp className="w-4 h-4 text-emerald-500 flex-shrink-0" />;
-            default: return <Search className="w-4 h-4 text-gray-400 flex-shrink-0" />;
-        }
-    };
 
     return (
         <div className={`relative w-full ${size === "small" ? "max-w-2xl" : "max-w-4xl"} z-50`}>

@@ -120,7 +120,7 @@ const AuthPage = () => {
           setFormData({ email: '', password: '', confirmPassword: '', fullName: '' });
         }
       }
-    } catch (error) {
+    } catch {
       setErrors({ submit: 'An unexpected error occurred. Please try again.' });
     } finally {
       setIsLoading(false);
@@ -133,7 +133,7 @@ const AuthPage = () => {
       if (error) {
         setErrors({ submit: `Failed to sign in with ${provider}. Please try again.` });
       }
-    } catch (error) {
+    } catch {
       setErrors({ submit: `Failed to sign in with ${provider}. Please try again.` });
     }
   };

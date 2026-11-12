@@ -6,7 +6,8 @@ All chat goes through chat_service.py using local Ollama RAG (FAISS + BM25).
 import asyncio
 import uuid
 import logging
-from fastapi import APIRouter, HTTPException, Body
+from fastapi import APIRouter, Depends, HTTPException, Body
+from ....core.auth import verify_api_key
 from ....services.chat_service import (
     ask_about_paper_with_session,
     load_session,
@@ -144,7 +145,7 @@ async def get_chat_history(session_id: str):
         )
 
 
-@router.delete("/history/{session_id}")
+@router.delete("/history/{session_id}", dependencies=[Depends(verify_api_key)])
 async def clear_chat_history(session_id: str):
     """
     Clear/delete a chat session from Redis.

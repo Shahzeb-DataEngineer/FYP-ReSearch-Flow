@@ -1936,7 +1936,7 @@ export const draftAPI = {
       let data;
       try {
         data = await response.json();
-      } catch (e) {
+      } catch {
         throw new APIError(
           `Server returned ${response.status} but no valid JSON response.`,
           response.status

@@ -41,9 +41,7 @@ const PaperListItem = ({ paper, isSelected, onClick }) => {
   const isUnpaywall = allSources.includes('Unpaywall') || paper.unpaywall_id;
   const isSemanticScholar = allSources.includes('Semantic Scholar') || (paper.semantic_scholar_id && !isArxiv && !isCore && !isPmc && !isOpenAlex && !isCrossref && !isEuropePmc && !isPubmed && !isDoaj && !isUnpaywall);
   const arxivId = paper.arxiv_id;
-  const coreId = paper.core_id;
   const pmcId = paper.pmc_id;
-  const semanticScholarId = paper.semantic_scholar_id || paper.paperId;
   const publishedDate = paper.published_date ? new Date(paper.published_date).getFullYear() : null;
   const year = paper.year || publishedDate;
   const venue = paper.venue && paper.venue !== 'N/A' ? paper.venue : null;
@@ -106,21 +104,13 @@ const PaperListItem = ({ paper, isSelected, onClick }) => {
 // Stats Panel Component (Right Column)
 const StatsPanel = ({
   papers,
-  stats,
   onClose,
-  selectedYears,
-  setSelectedYears,
-  selectedTopics,
-  setSelectedTopics,
   selectedTypes,
   setSelectedTypes,
   selectedSources,
   setSelectedSources,
   selectedInstitutions,
   setSelectedInstitutions,
-  openAccessOnly,
-  onToggleOpenAccess,
-  searchQuery,
   onRelatedSearch,
   relatedSearches,
   relatedLoading,
@@ -134,7 +124,7 @@ const StatsPanel = ({
   });
 
   // Memoize stats calculations - only recalculate when papers change
-  const { openAccessCount, openAccessPercent, sortedYears, maxYearCount, yearDistribution, sortedTopics, sortedInstitutions, sortedTypes, sortedSources } = useMemo(() => {
+  const { sortedInstitutions, sortedTypes, sortedSources } = useMemo(() => {
     // Calculate stats from papers
     const openAccessCount = papers.filter(p => p.isOpenAccess).length;
     const openAccessPercent = papers.length > 0 ? Math.round((openAccessCount / papers.length) * 100) : 0;
@@ -424,7 +414,7 @@ const DetailPanel = ({ paper, onClose, summaryJobs, onStartSummarize, isSplitScr
   // All hooks below run unconditionally, before any early return, so the
   // hook order stays stable even when paper is null. The null-paper
   // early return lives after the last hook.
-  const { user, isAuthenticated } = useAuth();
+  const { isAuthenticated } = useAuth();
   const { toasts, showToast, removeToast } = useToast();
   const navigate = useNavigate();
 
@@ -442,7 +432,7 @@ const DetailPanel = ({ paper, onClose, summaryJobs, onStartSummarize, isSplitScr
 
   // State for saved articles functionality
   const [isSaved, setIsSaved] = useState(false);
-  const [savedArticleId, setSavedArticleId] = useState(null);
+  const [, setSavedArticleId] = useState(null);
   const [notes, setNotes] = useState('');
   const [showNotesModal, setShowNotesModal] = useState(false);
   const [showLinkDropdown, setShowLinkDropdown] = useState(false);
@@ -489,10 +479,6 @@ const DetailPanel = ({ paper, onClose, summaryJobs, onStartSummarize, isSplitScr
   const isDoaj = paper?.source === 'DOAJ' || paper?.doaj_id;
   const isUnpaywall = paper?.source === 'Unpaywall' || paper?.unpaywall_id;
   const isSemanticScholar = paper?.source === 'Semantic Scholar' || (paper?.semantic_scholar_id && !isArxiv && !isCore && !isPmc && !isOpenAlex && !isCrossref && !isEuropePmc && !isPubmed && !isDoaj && !isUnpaywall);
-  const arxivId = paper?.arxiv_id;
-  const coreId = paper?.core_id;
-  const pmcId = paper?.pmc_id;
-  const semanticScholarId = paper?.semantic_scholar_id || paper?.paperId;
   const pdfUrlForExtract = paper?.pdf_url || paper?.openAccessPdf || pdfUrl || unpaywallPdfUrl;
 
   // Reset PDF content, chat, and draft when paper changes
@@ -745,7 +731,7 @@ const DetailPanel = ({ paper, onClose, summaryJobs, onStartSummarize, isSplitScr
               usedAbstractFallback = true;
             }
           }
-        } catch (extractErr) {
+        } catch {
           console.info('No direct PDF available for extraction, using abstract for chat context.');
           if (abstract) {
             currentPdfContent = abstract;
@@ -2124,7 +2110,7 @@ export default function Results() {
       };
 
       // Await all API calls using allSettled, but process each as it completes
-      const settledResults = await Promise.allSettled(
+      await Promise.allSettled(
         apiCalls.map(({ name, promise }) =>
           promise.then(result => {
             processResult(name, result);
@@ -2406,16 +2392,6 @@ export default function Results() {
     ));
   };
 
-  const handleSearch = (query) => {
-    setSearchQuery(query);
-    // Update the first title_abstract filter if it exists
-    const titleFilter = filters.find(f => f.field === 'title_abstract');
-    if (titleFilter) {
-      updateFilter(titleFilter.id, 'title_abstract', 'includes', query);
-    } else {
-      setFilters([createFilter('title_abstract', 'includes', query), ...filters]);
-    }
-  };
 
 
   // Export to Excel function
@@ -2642,7 +2618,7 @@ export default function Results() {
           {filters.length > 0 && (
             <div className="mt-4 flex items-center gap-2 flex-wrap border-t border-gray-100 pt-4">
               <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider mr-2">Advanced Filters:</span>
-              {filters.map((filter, index) => (
+              {filters.map((filter) => (
                 <div key={filter.id} className="flex items-center bg-gray-50 border border-gray-200 rounded-lg p-1.5 shadow-sm">
                   <select
                     value={filter.field}

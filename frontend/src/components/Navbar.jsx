@@ -5,7 +5,7 @@ import { Menu, LogOut, Bookmark, Crown, ArrowUpRight } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext.jsx";
 
 export default function Navbar() {
-  const [visible, setVisible] = useState(false);
+  const [, setVisible] = useState(false);
   const [userMenuVisible, setUserMenuVisible] = useState(false);
   const { user, isAuthenticated, signOut, loading } = useAuth();
   const userPlan = (user?.user_metadata?.plan || "basic").toLowerCase();
