@@ -169,9 +169,25 @@ All match the abstract.
   partly usable: key findings and limitations were accurate, but
   problem_statement and methodology came back as "Unable to extract...", so the
   full-text summarization quality still needs work). Unit tests are now 28/28.
+
+  Follow-up (2026-11-12): the summarization quality issue is fixed. Three
+  stacked bugs were found and fixed in the summarizer: the JSON repair prompt
+  contained `"..."` placeholders that the 3B model copied literally; chunking
+  never split a newline-free 54,556-char paper, so one chunk went far past the
+  8192-token context window; and the JATS extractor glued paragraphs together
+  with no headings or paragraph breaks. The repair prompt now shows paper
+  text with no template values, chunking hard-splits on blank lines, newlines,
+  sentences and characters, and JATS `<p>` elements are joined with blank
+  lines. Re-run live on the S4 paper (POST /api/v1/europe-pmc/summarize):
+  HTTP 200 in 1107.4 s, all four fields populated with real, accurate content
+  (problem statement, methodology, key findings, conclusion), zero
+  placeholders. Caveats: 18.5 minutes for one full-text paper on this
+  CPU-only machine, and the methodology field is capped at 2,000 chars and
+  ends mid-sentence. Unit tests are now 44/44.
 - Search is fast (1.0-2.8 s per source) and not the bottleneck.
 - Backend unit tests: `python -m unittest discover -s src/app/tests -v`
-  ran 24 tests, all passed (0.019 s).
+  ran 44 tests, all passed (updated 2026-11-12; was 24 at the time of the
+  original run).
 
 ## Limitations of this evaluation
 
