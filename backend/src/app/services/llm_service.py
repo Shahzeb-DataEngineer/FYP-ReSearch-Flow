@@ -13,6 +13,12 @@ Chunking: Ollama runs with num_ctx=8192, so long papers are split
 into ~12000-character chunks (about 3000 tokens) instead of the old
 100000-character single call. Each chunk is summarized, then the
 chunk summaries are merged.
+
+JSON robustness: the 3B model often returns malformed JSON or drops a
+field, so each chunk is parsed with a tolerant extractor, retried once
+with a repair prompt on failure, and any still-missing field is filled
+from the extractive fallback of the same text instead of an
+"Unable to extract..." placeholder.
 """
 import logging
 import json
@@ -65,9 +71,9 @@ def summarize_with_llm(text: str, model: Optional[str] = None) -> Optional[Dict[
         merged = {field: " ".join(s.get(field, "") for s in chunk_summaries) for field in SUMMARY_FIELDS}
         for field in SUMMARY_FIELDS:
             merged[field] = merged[field].strip()[:2000]
-        if all(merged.values()):
-            return merged
-        return _extractive_fallback(text)
+        # Keep the good LLM fields and fill only the missing ones from the
+        # extractive fallback, instead of discarding the whole merge.
+        return _fill_missing_fields(merged, text)
     except Exception as e:
         logging.error("Ollama summarization failed, using extractive fallback: %s", e, exc_info=True)
         return _extractive_fallback(text)
@@ -84,19 +90,51 @@ def _strip_references(text: str) -> str:
 
 
 def _chunk_text(text: str, max_chars: int) -> List[str]:
-    """Split text into chunks of at most max_chars, on paragraph breaks."""
+    """Split text into chunks of at most max_chars.
+
+    Splits on paragraph breaks first, then single newlines, then
+    sentences, then hard character splits, so a chunk can never exceed
+    max_chars. This matters because some extracted full text (e.g. the
+    Europe PMC JATS body) arrives as one long run with no blank lines:
+    without the hard split the whole 54k-char paper became a single
+    chunk, far past the model's 8192-token context window.
+    """
     if len(text) <= max_chars:
         return [text]
+
+    def _split_unit(unit: str) -> List[str]:
+        if len(unit) <= max_chars:
+            return [unit]
+        # Split on sentence boundaries, keeping every fragment (unlike
+        # _split_sentences, which drops fragments under 10 chars).
+        sentences = [s for s in re.split(r"(?<=[.!?])\s+", unit) if s.strip()]
+        if not sentences:
+            return [unit[i:i + max_chars] for i in range(0, len(unit), max_chars)]
+        pieces = []
+        for sentence in sentences:
+            if len(sentence) <= max_chars:
+                pieces.append(sentence)
+            else:
+                for start in range(0, len(sentence), max_chars):
+                    pieces.append(sentence[start:start + max_chars])
+        return pieces
+
     chunks: List[str] = []
     current = ""
-    for para in text.split("\n\n"):
-        if len(current) + len(para) + 2 > max_chars and current:
+
+    def _flush():
+        nonlocal current
+        if current:
             chunks.append(current)
-            current = para
-        else:
-            current = (current + "\n\n" + para) if current else para
-    if current:
-        chunks.append(current)
+            current = ""
+
+    for para in text.split("\n\n"):
+        for line in para.split("\n"):
+            for unit in _split_unit(line):
+                if len(current) + len(unit) + 2 > max_chars and current:
+                    _flush()
+                current = (current + "\n\n" + unit) if current else unit
+    _flush()
     return chunks
 
 
@@ -104,7 +142,10 @@ def _summarize_chunk(llm, chunk: str) -> Optional[Dict[str, str]]:
     prompt = (
         "You are an expert academic researcher. Analyze the following research paper "
         "text and provide a detailed, structured summary.\n\n"
-        "IMPORTANT: Provide your response EXACTLY in this JSON format:\n"
+        "Output ONLY a valid JSON object, exactly in this format. Do not write any "
+        "explanation, preamble, or commentary before or after the JSON. Do not wrap "
+        "the JSON in markdown code fences. All four fields must be present and "
+        "non-empty, with plain double-quoted strings (no trailing commas):\n"
         "{\n"
         '  "problem_statement": "A clear description of the research problem or question addressed (2-4 sentences)",\n'
         '  "methodology": "Detailed description of the methods, approaches, techniques, or frameworks used (3-5 sentences)",\n'
@@ -112,21 +153,123 @@ def _summarize_chunk(llm, chunk: str) -> Optional[Dict[str, str]]:
         '  "conclusion": "The key conclusions, implications, or contributions of the research (2-4 sentences)"\n'
         "}\n\n"
         f"Research Paper Content:\n{chunk}\n\n"
-        "Now provide the JSON-formatted summary:"
+        "Now provide ONLY the JSON object:"
     )
     response = llm.invoke(prompt)
     content = response.content if isinstance(response.content, str) else str(response.content)
+    summary = _extract_json_object(content)
+    if summary is not None and all(summary.get(field) for field in SUMMARY_FIELDS):
+        return summary
+    # The 3B model often returns malformed JSON or drops a field: retry
+    # once with a repair prompt. The prompt shows the paper text (not a
+    # template with "..." values, which the model copies literally) and
+    # demands real sentences from it.
+    logging.warning("First summary attempt was not usable JSON, retrying once with a repair prompt")
+    repair_prompt = (
+        "Your previous response was not valid JSON. Write a new summary of "
+        "the paper text below as a JSON object with exactly these four keys: "
+        "problem_statement, methodology, key_findings, conclusion. Each value "
+        "must be 2-6 real sentences taken from the paper text. Do not write "
+        "any explanation, preamble, or commentary. Do not wrap the JSON in "
+        "markdown code fences. Do not use placeholder values such as ... or "
+        "N/A. Do not copy example text.\n\n"
+        f"Paper text:\n{chunk[:6000]}\n\n"
+        "Now provide ONLY the JSON object:"
+    )
     try:
-        summary_json = json.loads(content)
-        if isinstance(summary_json, dict):
-            summary = {
-                field: str(summary_json.get(field, "")).strip() for field in SUMMARY_FIELDS
-            }
-            if all(summary.values()):
+        repair_response = llm.invoke(repair_prompt)
+        repair_content = (
+            repair_response.content
+            if isinstance(repair_response.content, str)
+            else str(repair_response.content)
+        )
+        retry_summary = _extract_json_object(repair_content)
+        if retry_summary is not None:
+            summary = retry_summary
+            content = repair_content
+    except Exception as e:
+        logging.warning("Summary repair retry failed: %s", e)
+    if summary is not None and all(summary.get(field) for field in SUMMARY_FIELDS):
+        return summary
+    # Last resort: regex/text parsing of whatever the model returned,
+    # then fill any still-missing fields from the extractive fallback
+    # of this chunk instead of "Unable to extract..." placeholders.
+    parsed = _parse_llm_summary(content)
+    if summary is not None:
+        for field in SUMMARY_FIELDS:
+            if not parsed.get(field) and summary.get(field):
+                parsed[field] = summary[field]
+    return _fill_missing_fields(parsed, chunk)
+
+
+def _extract_json_object(content: str) -> Optional[Dict[str, str]]:
+    """Extract a JSON object with the four summary fields from raw model output.
+
+    The 3B model often adds prose around the JSON, wraps it in fences, or
+    leaves a trailing comma, so plain ``json.loads`` on the raw output
+    fails. Tries, in order: the raw string, a fenced block (greedy, so
+    braces inside string values do not cut it short), the span from the
+    first ``{`` to the last ``}``, and the same candidates with trailing
+    commas removed. Returns a dict with the four summary fields (values
+    coerced to stripped strings) or None if nothing parses.
+    """
+    if not content:
+        return None
+    candidates = [content]
+    fence = re.search(r"```(?:json)?\s*(\{.*\})\s*```", content, re.DOTALL)
+    if fence:
+        candidates.append(fence.group(1))
+    start = content.find("{")
+    end = content.rfind("}")
+    if start != -1 and end > start:
+        candidates.append(content[start:end + 1])
+    for candidate in candidates:
+        for text in (candidate, re.sub(r",\s*([}\]])", r"\1", candidate)):
+            try:
+                parsed = json.loads(text, strict=False)
+            except (json.JSONDecodeError, ValueError):
+                continue
+            if isinstance(parsed, dict):
+                summary = {}
+                for field in SUMMARY_FIELDS:
+                    value = str(parsed.get(field, "") or "").strip()
+                    # Placeholder-only values ("...", "N/A") are not real
+                    # content: treat them as missing so the caller retries
+                    # or fills from the extractive fallback instead.
+                    if _is_placeholder(value):
+                        value = ""
+                    summary[field] = value
                 return summary
-    except json.JSONDecodeError:
-        logging.warning("Ollama summary not in JSON format, attempting text parsing")
-    return _parse_llm_summary(content)
+    return None
+
+
+def _is_placeholder(value: str) -> bool:
+    """True when a summary field holds no real content: empty, only
+    punctuation, or a stock placeholder such as "..." or "N/A"."""
+    cleaned = re.sub(r"[^a-z0-9]+", "", (value or "").lower())
+    return not cleaned or cleaned in {"na", "none", "notavailable", "tbd"}
+
+
+def _fill_missing_fields(summary: Dict[str, str], text: str) -> Dict[str, str]:
+    """Fill any empty summary field from the extractive fallback of the text.
+
+    Replaces the old behaviour of returning "Unable to extract ..." for a
+    missing field: the paper text is in context, so real sentences from
+    the matching section are strictly better than a placeholder. Only
+    fills from fallback text that is real content (not the fallback's own
+    "not available" markers).
+    """
+    fallback = _extractive_fallback(text)
+    filled = {field: (summary.get(field) or "").strip() for field in SUMMARY_FIELDS}
+    for field in SUMMARY_FIELDS:
+        if filled[field]:
+            continue
+        candidate = fallback.get(field, "")
+        if candidate and "not available" not in candidate.lower():
+            filled[field] = candidate
+        elif not filled[field]:
+            filled[field] = "Summary not available for this section."
+    return filled
 
 
 def _extractive_fallback(text: str) -> Dict[str, str]:
@@ -169,7 +312,7 @@ def _extract_sections(text: str) -> Dict[str, str]:
         "introduction": rf"(?:introduction|background|motivation)[\.\s:]+\n?(.*?)(?=\n\s*(?:2\.|methodology|method|related work|background))",
         "methodology": rf"(?:methodology|methods?|approach)[\.\s:]+\n?(.*?)(?=\n\s*(?:3\.|4\.|results?|experiments?|evaluation))",
         "results": rf"(?:results?|experiments?|evaluation|findings?)[\.\s:]+\n?(.*?)(?=\n\s*(?:discussion|conclusion|5\.|6\.))",
-        "conclusion": rf"(?:conclusion|conclusions?|summary|closing)[\.\s:]+\n?(.*?)(?=\n\s*(?:references|acknowledgments?|bibliography|$))",
+        "conclusion": rf"(?:conclusion|conclusions?|summary|closing)[\.\s:]+\n?(.*?)(?=\n\s*(?:references|acknowledgments?|bibliography)|$)",
     }
     for name, pattern in patterns.items():
         match = re.search(pattern, text, re.IGNORECASE | re.DOTALL)
@@ -195,7 +338,10 @@ def _first_sentences(text: str, n: int) -> str:
 def _parse_llm_summary(summary_text: str) -> Dict[str, str]:
     """
     Parse the LLM response into structured sections.
-    (Kept from the original llm_service.py; unchanged logic.)
+    Last resort after the JSON extractor and the repair retry: regex
+    over headings / JSON fragments, then paragraph fallback. Missing
+    fields are left empty for the caller to fill from the extractive
+    fallback.
     """
     summary = {
         "problem_statement": "",
@@ -268,7 +414,7 @@ def _parse_llm_summary(summary_text: str) -> Dict[str, str]:
 
     for key in summary:
         summary[key] = summary[key].strip()
-        if not summary[key] or len(summary[key]) < 10:
-            summary[key] = f"Unable to extract {key.replace('_', ' ')} from the summary. Please try again."
-
+    # Do NOT fill missing fields with "Unable to extract..." here: the
+    # caller (_summarize_chunk) fills them from the extractive fallback
+    # of the source text instead.
     return summary
