@@ -96,7 +96,7 @@ def _extract_sections(text: str) -> Dict[str, str]:
         "introduction": rf"(?:introduction|background|motivation)[\.\s:]+\n?(.*?)(?=\n\s*(?:2\.|methodology|method|related work|background))",
         "methodology": rf"(?:methodology|methods?|approach)[\.\s:]+\n?(.*?)(?=\n\s*(?:3\.|4\.|results?|experiments?|evaluation))",
         "results": rf"(?:results?|experiments?|evaluation|findings?)[\.\s:]+\n?(.*?)(?=\n\s*(?:discussion|conclusion|5\.|6\.))",
-        "conclusion": rf"(?:conclusion|conclusions?|summary|closing)[\.\s:]+\n?(.*?)(?=\n\s*(?:references|acknowledgments?|bibliography|$))"
+        "conclusion": rf"(?:conclusion|conclusions?|summary|closing)[\.\s:]+\n?(.*?)(?=\n\s*(?:references|acknowledgments?|bibliography)|$)"
     }
     
     for section_name, pattern in section_patterns.items():

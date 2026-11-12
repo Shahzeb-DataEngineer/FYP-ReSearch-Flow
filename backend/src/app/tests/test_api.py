@@ -17,6 +17,7 @@ not from src/app/tests/.)
 
 import unittest
 import xml.etree.ElementTree as ET
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pandas as pd
@@ -25,9 +26,18 @@ from src.app.services import (
     crossref_service,
     doaj_service,
     europe_pmc_service,
+    llm_service,
     pdf_service,
     pubmed_service,
     unpaywall_service,
+)
+from src.app.services.llm_service import (
+    _chunk_text,
+    _extract_json_object,
+    _fill_missing_fields,
+    _is_placeholder,
+    _summarize_chunk,
+    summarize_with_llm,
 )
 from src.app.services.crossref_service import _parse_crossref_item
 from src.app.services.doaj_service import _parse_doaj_item
@@ -434,6 +444,22 @@ enough words to pass the minimum-length check for extracted full text.</p>
             "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC13576103/fullTextXML",
         )
 
+    def test_paragraphs_kept_separate_with_blank_lines(self):
+        # Regression: the old extractor collapsed all whitespace, so
+        # the whole body arrived as one glued blob ("BackgroundThyroid
+        # nodules...") with no paragraph breaks for chunking or section
+        # detection.
+        with patch.object(
+            pdf_service.requests, "get", return_value=self._xml_response()
+        ):
+            text, error = pdf_service.get_pdf_text_from_url(
+                "https://europepmc.org/articles/PMC999"
+            )
+        self.assertIsNone(error)
+        self.assertIn("\n\n", text)
+        self.assertIn("Introduction\n\nFirst body sentence", text)
+        self.assertNotIn("IntroductionFirst", text)
+
     def test_plain_article_url_also_uses_fulltext_xml(self):
         with patch.object(
             pdf_service.requests, "get", return_value=self._xml_response()
@@ -506,6 +532,195 @@ enough words to pass the minimum-length check for extracted full text.</p>
         self.assertIsNone(error)
         self.assertIn("Fallback PDF text", text)
         self.assertFalse(any("fullTextXML" in url for url in calls))
+
+
+class TestSummaryJsonRobustness(unittest.TestCase):
+    """The 3B model returns malformed JSON or drops fields, so the
+    summarizer must extract tolerant JSON, retry once with a repair
+    prompt, and fill still-missing fields from the extractive fallback
+    of the same text instead of "Unable to extract..." placeholders.
+    No network, no live Ollama: the LLM is a fake returning canned
+    responses."""
+
+    GOOD_JSON = (
+        '{"problem_statement": "The problem is X.", '
+        '"methodology": "We used method Y.", '
+        '"key_findings": "We found Z.", '
+        '"conclusion": "X works."}'
+    )
+
+    # Paper text with real newline-separated sections, so the extractive
+    # fallback can find each section.
+    SECTION_TEXT = (
+        "Abstract\n"
+        "This study asks whether X causes Y in patients with diabetes.\n\n"
+        "Introduction\n"
+        "The problem matters because X is common and poorly understood.\n\n"
+        "Methods\n"
+        "We ran a randomized trial of method Y on 200 patients.\n\n"
+        "Results\n"
+        "The trial found Z improved outcomes by half in all groups.\n\n"
+        "Conclusion\n"
+        "X works and should be adopted in clinics everywhere."
+    )
+
+    def _fake_llm(self, responses):
+        class FakeLLM:
+            def __init__(self, replies):
+                self.replies = list(replies)
+                self.calls = []
+
+            def invoke(self, prompt):
+                self.calls.append(prompt)
+                return SimpleNamespace(content=self.replies.pop(0))
+
+        return FakeLLM(responses)
+
+    def test_extract_plain_json(self):
+        out = _extract_json_object(self.GOOD_JSON)
+        self.assertEqual(out["problem_statement"], "The problem is X.")
+        self.assertEqual(out["conclusion"], "X works.")
+
+    def test_extract_fenced_json(self):
+        out = _extract_json_object("Here is the summary:\n```json\n" + self.GOOD_JSON + "\n```")
+        self.assertEqual(out["methodology"], "We used method Y.")
+
+    def test_extract_json_with_prose_around_it(self):
+        out = _extract_json_object(
+            "Sure, here is the structured summary.\n" + self.GOOD_JSON + "\nHope that helps."
+        )
+        self.assertEqual(out["key_findings"], "We found Z.")
+
+    def test_extract_repairs_trailing_comma(self):
+        broken = self.GOOD_JSON.replace('"X works."}', '"X works.",}')
+        out = _extract_json_object(broken)
+        self.assertIsNotNone(out)
+        self.assertEqual(out["conclusion"], "X works.")
+
+    def test_extract_malformed_json_returns_none(self):
+        self.assertIsNone(_extract_json_object("not json at all"))
+        self.assertIsNone(_extract_json_object('{"problem_statement": "unclosed'))
+
+    def test_placeholder_json_values_are_treated_as_missing(self):
+        self.assertEqual(
+            _extract_json_object(
+                '{"problem_statement": "...", "methodology": "N/A", '
+                '"key_findings": "Real finding here.", "conclusion": "..."}'
+            ),
+            {
+                "problem_statement": "",
+                "methodology": "",
+                "key_findings": "Real finding here.",
+                "conclusion": "",
+            },
+        )
+
+    def test_is_placeholder(self):
+        for value in ("", "...", "..", "N/A", "not available", " - "):
+            self.assertTrue(_is_placeholder(value), value)
+        for value in ("Real sentence here.", "X works."):
+            self.assertFalse(_is_placeholder(value), value)
+
+    def test_chunk_text_hard_splits_a_blob_with_no_newlines(self):
+        # Regression: the Europe PMC JATS body arrived as one 54k-char
+        # run with no blank lines and became a single chunk, far past
+        # the model's 8192-token context window.
+        blob = "Word " * 6000  # 30000 chars, no newlines at all
+        chunks = _chunk_text(blob, 12000)
+        self.assertGreater(len(chunks), 1)
+        self.assertTrue(all(len(c) <= 12000 for c in chunks))
+        self.assertEqual("".join(c.replace("\n\n", "") for c in chunks), blob)
+
+    def test_repair_prompt_has_no_placeholder_template(self):
+        llm = self._fake_llm(["{not valid json", self.GOOD_JSON])
+        _summarize_chunk(llm, "Some paper text " * 20)
+        self.assertEqual(len(llm.calls), 2)
+        self.assertNotIn('"problem_statement": "..."', llm.calls[1])
+        self.assertIn("Paper text:", llm.calls[1])
+
+    def test_placeholder_echo_is_filled_from_chunk_text(self):
+        # The 3B model copied the old repair prompt's "..." template
+        # values, which the extractor accepted as valid JSON.
+        echo = (
+            '{"problem_statement": "...", "methodology": "...", '
+            '"key_findings": "...", "conclusion": "..."}'
+        )
+        llm = self._fake_llm([echo, echo])
+        summary = _summarize_chunk(llm, self.SECTION_TEXT)
+        for field in ("problem_statement", "methodology", "key_findings", "conclusion"):
+            self.assertNotIn("...", summary[field])
+            self.assertGreater(len(summary[field]), 20)
+        self.assertIn("clinics", summary["conclusion"])
+        out = _extract_json_object('{"problem_statement": "Only this."}')
+        self.assertEqual(out["problem_statement"], "Only this.")
+        self.assertEqual(out["conclusion"], "")
+
+    def test_first_try_valid_json_needs_no_retry(self):
+        llm = self._fake_llm([self.GOOD_JSON])
+        summary = _summarize_chunk(llm, "Some paper text " * 20)
+        self.assertEqual(summary["problem_statement"], "The problem is X.")
+        self.assertEqual(len(llm.calls), 1)
+
+    def test_malformed_first_response_is_repaired_on_retry(self):
+        llm = self._fake_llm(["{not valid json", self.GOOD_JSON])
+        summary = _summarize_chunk(llm, "Some paper text " * 20)
+        self.assertEqual(summary["key_findings"], "We found Z.")
+        self.assertEqual(len(llm.calls), 2)
+        self.assertIn("not valid JSON", llm.calls[1])
+
+    def test_missing_field_filled_from_chunk_text_not_placeholder(self):
+        incomplete = (
+            '{"problem_statement": "The problem is X.", '
+            '"methodology": "We used method Y.", '
+            '"key_findings": "We found Z.", '
+            '"conclusion": ""}'
+        )
+        llm = self._fake_llm([incomplete, incomplete])
+        summary = _summarize_chunk(llm, self.SECTION_TEXT)
+        self.assertEqual(summary["problem_statement"], "The problem is X.")
+        # Conclusion must come from the chunk itself, never a placeholder.
+        self.assertNotIn("Unable to extract", summary["conclusion"])
+        self.assertIn("clinics", summary["conclusion"])
+
+    def test_fill_missing_fields_uses_real_sentences(self):
+        out = _fill_missing_fields(
+            {"problem_statement": "Kept.", "methodology": "", "key_findings": "", "conclusion": ""},
+            self.SECTION_TEXT,
+        )
+        self.assertEqual(out["problem_statement"], "Kept.")
+        self.assertIn("trial", out["methodology"])
+        self.assertIn("found Z", out["key_findings"])
+        self.assertIn("adopted", out["conclusion"])
+
+    def test_merge_fills_missing_field_instead_of_discarding_llm_fields(self):
+        # Two chunks (>12000 chars each) so the merge path runs.
+        para = (
+            "Abstract. This study asks whether X causes Y in patients. "
+            "Introduction. The problem matters because X is common. "
+            "Methods. We ran a randomized trial of method Y on 200 patients. "
+            "Results. The trial found Z improved outcomes by half. "
+            "Conclusion. X works and should be adopted in clinics. "
+        )
+        text = (para * 40) + "\n\n" + (para * 40)
+        first = (
+            '{"problem_statement": "Problem X.", "methodology": "Method Y.", '
+            '"key_findings": "Found Z.", "conclusion": ""}'
+        )
+        second = (
+            '{"problem_statement": "Problem X again.", "methodology": "Method Y again.", '
+            '"key_findings": "Found Z again.", "conclusion": ""}'
+        )
+        llm = self._fake_llm([first, second, first, second])
+        with (
+            patch.object(llm_service, "check_ollama_available", return_value=True),
+            patch.object(llm_service, "get_chat_model", return_value=llm),
+        ):
+            summary = summarize_with_llm(text)
+        # LLM fields survive the merge; the missing conclusion is filled
+        # from the paper text, not discarded and not a placeholder.
+        self.assertIn("Problem X", summary["problem_statement"])
+        self.assertNotIn("Unable to extract", summary["conclusion"])
+        self.assertIn("clinics", summary["conclusion"])
 
 
 if __name__ == "__main__":

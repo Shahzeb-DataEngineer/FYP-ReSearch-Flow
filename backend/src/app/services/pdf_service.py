@@ -214,8 +214,11 @@ def _text_from_jats_xml(xml_bytes: bytes) -> str:
     """Convert JATS full-text XML to plain text.
 
     Uses the <body> element when present (the article text without the
-    front-matter metadata); otherwise the whole document. Element text
-    and tails are joined, then whitespace is collapsed.
+    front-matter metadata); otherwise the whole document. Paragraphs
+    (<p>) are joined with blank lines and each section <title> is kept
+    on its own line, so downstream chunking (which splits on blank
+    lines) and section detection see real paragraph and heading
+    boundaries instead of one glued-together blob.
     """
     import xml.etree.ElementTree as ET
 
@@ -223,6 +226,30 @@ def _text_from_jats_xml(xml_bytes: bytes) -> str:
     body = root.find(".//body")
     scope = body if body is not None else root
 
+    def _clean(element) -> str:
+        return re.sub(r"\s+", " ", "".join(element.itertext())).strip()
+
+    # Section titles are the <title> children of <sec> elements.
+    sec_titles = set()
+    for sec in scope.iter("sec"):
+        for child in sec:
+            if child.tag == "title":
+                sec_titles.add(child)
+
+    paragraphs = []
+    for element in scope.iter():
+        if element in sec_titles:
+            title = _clean(element)
+            if title:
+                paragraphs.append(title)
+        elif element.tag == "p":
+            text = _clean(element)
+            if text:
+                paragraphs.append(text)
+    if paragraphs:
+        return "\n\n".join(paragraphs)
+
+    # No <p> elements (unusual JATS): fall back to the whole text.
     parts = []
 
     def collect(element):
