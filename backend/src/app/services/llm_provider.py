@@ -20,7 +20,7 @@ import logging
 import os
 from typing import Tuple
 
-from ..core.config import settings
+from ..core.config import _sanitize_no_proxy, settings
 
 logger = logging.getLogger(__name__)
 
@@ -28,27 +28,8 @@ logger = logging.getLogger(__name__)
 EMBEDDING_DIMENSION = 768
 
 
-def _sanitize_no_proxy() -> None:
-    """
-    Workaround for an httpx bug on this machine: the ollama python
-    client (used by langchain-ollama) parses NO_PROXY with httpx,
-    which raises InvalidURL on bracketed IPv6 entries such as [::1]
-    that this environment puts in NO_PROXY. Strip bracketed entries;
-    localhost and 127.0.0.1 already cover the local Ollama server.
-    Only the process environment is changed, not the system.
-    """
-    for key in ("NO_PROXY", "no_proxy"):
-        value = os.environ.get(key)
-        if not value:
-            continue
-        cleaned = ",".join(
-            part.strip() for part in value.split(",") if "[" not in part
-        )
-        if "localhost" not in cleaned:
-            cleaned = (cleaned + ",localhost,127.0.0.1") if cleaned else "localhost,127.0.0.1"
-        os.environ[key] = cleaned
-
-
+# Kept as a safeguard: config.py already sanitizes at import time,
+# this makes llm_provider safe to import on its own too.
 _sanitize_no_proxy()
 
 

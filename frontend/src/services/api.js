@@ -2,6 +2,43 @@ import { supabase } from '../lib/supabase';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api/v1';
 
+/**
+ * Authorization header for the authenticated backend routes
+ * (chat and draft generation). Search and summarization stay
+ * public; chat and drafts require a logged-in user, so the
+ * Supabase session access token is sent as a Bearer token.
+ * Returns {} when there is no session, letting the backend
+ * answer 401 with a clear "log in" message.
+ */
+async function getAuthHeaders() {
+  try {
+    const { data } = await supabase.auth.getSession();
+    const token = data?.session?.access_token;
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * Ask the backend whether the local AI model is reachable.
+ * Used for the "AI unavailable" banner instead of letting
+ * summarize / chat / draft hang or fail silently.
+ */
+export async function checkAiReady() {
+  try {
+    const base = API_BASE_URL.replace(/\/api\/v1$/, '');
+    const response = await fetch(`${base}/ready`, {
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!response.ok) return false;
+    const data = await response.json();
+    return data.ollama === true;
+  } catch {
+    return false;
+  }
+}
+
 class APIError extends Error {
   constructor(message, status, details) {
     super(message);
@@ -1929,6 +1966,7 @@ export const draftAPI = {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...(await getAuthHeaders()),
         },
         body: JSON.stringify(requestBody),
       });
@@ -1944,6 +1982,13 @@ export const draftAPI = {
       }
 
       if (!response.ok) {
+        if (response.status === 401) {
+          throw new APIError(
+            'Please log in to generate drafts. Draft generation is available to signed-in researchers.',
+            401,
+            data.detail
+          );
+        }
         const errorMsg = data.detail?.message || data.detail || 'Failed to generate draft';
         throw new APIError(
           typeof errorMsg === 'string' ? errorMsg : JSON.stringify(errorMsg),
@@ -1993,7 +2038,7 @@ export const chatAPI = {
       try {
         response = await fetch(`${API_BASE_URL}/chat/ask`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...(await getAuthHeaders()) },
           body: JSON.stringify(requestBody),
           signal: controller.signal,
         });
@@ -2003,6 +2048,13 @@ export const chatAPI = {
 
       const data = await response.json();
       if (!response.ok) {
+        if (response.status === 401) {
+          throw new APIError(
+            'Please log in to use AI chat. Chat is available to signed-in researchers.',
+            401,
+            data.detail
+          );
+        }
         throw new APIError(
           data.detail?.message || data.detail || 'Failed to get answer',
           response.status,
@@ -2029,7 +2081,9 @@ export const chatAPI = {
    */
   async getHistory(sessionId) {
     try {
-      const response = await fetch(`${API_BASE_URL}/chat/history/${sessionId}`);
+      const response = await fetch(`${API_BASE_URL}/chat/history/${sessionId}`, {
+        headers: { ...(await getAuthHeaders()) },
+      });
       const data = await response.json();
       if (!response.ok) {
         throw new APIError(data.detail?.message || 'Failed to get history', response.status, data.detail);
@@ -2047,7 +2101,10 @@ export const chatAPI = {
    */
   async clearHistory(sessionId) {
     try {
-      const response = await fetch(`${API_BASE_URL}/chat/history/${sessionId}`, { method: 'DELETE' });
+      const response = await fetch(`${API_BASE_URL}/chat/history/${sessionId}`, {
+        method: 'DELETE',
+        headers: { ...(await getAuthHeaders()) },
+      });
       const data = await response.json();
       if (!response.ok) {
         throw new APIError(data.detail?.message || 'Failed to clear history', response.status, data.detail);

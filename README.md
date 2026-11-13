@@ -5,6 +5,31 @@ ReSearch Flow is a full-stack AI-driven platform designed to simplify and accele
 
 ---
 
+## Try it in 2 minutes
+
+No account needed to search. Log in (free, via Supabase) only when you
+want the AI features.
+
+1. **Search** - type a topic in the search bar. Papers come back from
+   ten free sources (OpenAlex, arXiv, Crossref, Europe PMC, PubMed,
+   DOAJ, Semantic Scholar, CORE, PMC, Unpaywall) with duplicates
+   removed.
+2. **Summarize** - open a paper and hit Summarize. You get a structured
+   summary (problem, method, results, conclusion) from the full text
+   when it is available. Runs on a local model, no paid API key.
+3. **Ask** - ask a question about the paper in plain language. Answers
+   come from the paper itself (RAG), not from general knowledge.
+4. **Draft** - generate a structured draft from a paper, then edit it
+   in the editor. Save papers, notes, and searches to your workspace.
+
+Everything AI runs locally on Ollama, so there is no per-token bill.
+Full-paper summaries take 2-5 minutes on a CPU-only machine; abstract
+summaries take about 1-2 minutes.
+
+To self-host it, see [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
+
+---
+
 ## Problem Statement
 
 Modern research workflows are fragmented across multiple platforms such as Google Scholar, PubMed, and arXiv. Researchers face challenges including:
