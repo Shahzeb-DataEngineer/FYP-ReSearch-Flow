@@ -287,6 +287,30 @@ class TestUnpaywallParsing(unittest.TestCase):
         item = dict(self.ITEM, best_oa_location={})
         self.assertIsNone(_parse_unpaywall_item(item, "10.1/x"))
 
+    def test_fetch_sends_configured_contact_email(self):
+        # The fetch must send the email from Settings (which loads
+        # backend/.env), not a hardcoded value: the old code read
+        # os.getenv directly and missed backend/.env, so live lookups
+        # silently used the rejected example.com placeholder.
+        from src.app.core.config import settings
+
+        with patch(
+            "src.app.services.unpaywall_service.requests.get"
+        ) as mock_get:
+            mock_get.return_value = SimpleNamespace(
+                status_code=200,
+                json=lambda: dict(self.ITEM),
+                raise_for_status=lambda: None,
+            )
+            paper = unpaywall_service.fetch_unpaywall_paper(
+                "10.1038/s41567-021-00001"
+            )
+            self.assertIsNotNone(paper)
+            _, kwargs = mock_get.call_args
+            self.assertEqual(
+                kwargs["params"]["email"], settings.UNPAYWALL_EMAIL
+            )
+
 
 class TestCrossrefParsing(unittest.TestCase):
     ITEM = {

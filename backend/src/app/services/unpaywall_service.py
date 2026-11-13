@@ -17,14 +17,17 @@ from typing import Dict, Any, Optional
 
 import requests
 
+from ..core.config import settings
+
 UNPAYWALL_BASE = "https://api.unpaywall.org/v2"
 # Contact email sent with Unpaywall requests, as the API requires.
 # NOTE: Unpaywall rejects example.com addresses with HTTP 422
 # ("Please use your own email address in API calls"), so the
 # placeholder default below does NOT work live. Set UNPAYWALL_EMAIL
 # to a real project address when deploying; until then Unpaywall
-# lookups return no results.
-CONTACT_EMAIL = os.getenv("UNPAYWALL_EMAIL", "research-flow@example.com")
+# lookups return no results. The value is read through Settings so
+# backend/.env is honoured (os.getenv alone missed the .env file).
+CONTACT_EMAIL = os.getenv("UNPAYWALL_EMAIL") or settings.UNPAYWALL_EMAIL
 
 
 def fetch_unpaywall_paper(doi: str) -> Optional[Dict[str, Any]]:

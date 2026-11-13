@@ -3,7 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { Search, BookOpen, Users } from 'lucide-react';
 import SearchBar from '../components/SearchBar';
 
-const FeatureCard = ({ icon: Icon, title, description }) => (
+const FeatureCard = ({ icon, title, description }) => {
+  // Assigned to a const (not a destructured rename): ESLint's
+  // no-unused-vars does not count JSX usage of a destructured
+  // parameter rename, so `({ icon: Icon })` was wrongly flagged.
+  const Icon = icon;
+  return (
   <div className="group p-6 bg-gray-50 rounded-lg border border-gray-300 hover:border-black transition-all duration-300 hover:shadow-lg">
     <div className="flex items-center mb-4">
       <div className="p-3 bg-black rounded-lg mr-4 group-hover:scale-110 transition-transform duration-300">
@@ -13,7 +18,8 @@ const FeatureCard = ({ icon: Icon, title, description }) => (
     </div>
     <p className="text-gray-600 leading-relaxed">{description}</p>
   </div>
-);
+  );
+};
 
 export default function Home() {
   const navigate = useNavigate();

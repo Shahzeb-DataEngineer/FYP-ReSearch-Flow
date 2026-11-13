@@ -52,16 +52,20 @@ What changed, in short:
   1107.4 s, all four fields populated with accurate content, zero placeholders.
 - Search: 1.0-2.8 s per source. Abstract-based summary: 66-109 s.
   Full-PDF summary: 10-18 minutes per paper on CPU.
-- Backend unit tests: 44/44 pass. Frontend lint: 10 problems (3 errors,
+- Backend unit tests: 45/45 pass. Frontend lint: 7 problems (0 errors,
   7 warnings), down from 85 at the start of the revival.
 - The old README performance numbers (1.8 s first results, 6-9 s full
   results, 38% dedup, RAG 74%/18%/8%) were removed: they were never measured.
 
 ## Still open
 
-- **UNPAYWALL_EMAIL**: a real project email address must be set. The
-  placeholder is rejected by the Unpaywall API (HTTP 422), so Unpaywall
-  lookups return nothing until this is configured.
+- **UNPAYWALL_EMAIL**: set locally (2026-11-13) to the user's Gmail in
+  `backend/.env` (gitignored, never committed) and verified live: a DOI
+  lookup now returns real open-access data instead of HTTP 422. Note:
+  the service previously read `os.getenv` directly, which missed
+  `backend/.env`; it now reads the value through Settings, so the
+  `backend/.env` file works. Deployments still need the variable set in
+  their own environment. The placeholder default remains unusable.
 - **Supabase key rotation**: a Supabase anon key committed to git history in
   the original project is still visible in 8 history commits. Rotate it in
   the Supabase dashboard. The file itself was removed from git tracking.

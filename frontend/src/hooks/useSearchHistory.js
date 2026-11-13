@@ -9,7 +9,7 @@
  */
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../lib/supabase';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from './useAuth';
 
 // Common academic research topic suggestions for non-logged-in users
 // or users with no search history

@@ -4,7 +4,7 @@ import {
   ChevronDown, Trash2, FolderOpen, Save, Pencil, ChevronRight 
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../hooks/useAuth';
 
 export default function SearchDropdown({ topic, searchQuery }) {
   const navigate = useNavigate();
