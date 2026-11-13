@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../hooks/useAuth';
 import { Folder, Pencil, Trash2, X, Check, Search, AlertCircle } from 'lucide-react';
 
 export default function SavedSearches() {

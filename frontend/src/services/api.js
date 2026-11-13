@@ -1970,7 +1970,7 @@ export const draftAPI = {
 // Unified Chat API — uses /chat/ask with Redis session persistence
 export const chatAPI = {
   /**
-   * Ask a question about a paper using RAG (Pinecone + LangChain + Redis).
+   * Ask a question about a paper using RAG (local Ollama + FAISS + BM25).
    * @param {string} question - The question to ask
    * @param {object} options - { pdfText, pdfUrl, abstract, sessionId, paperTitle, paperSource }
    * @returns {Promise<Object>} { status, session_id, question, answer }

@@ -12,8 +12,9 @@ import CitationMesh from '../components/CitationMesh';
 import ArticleNotesModal from '../components/ArticleNotesModal';
 import FloatingBubbles from '../components/FloatingBubbles';
 
-import { ToastContainer, useToast } from '../components/Toast';
-import { useAuth } from '../contexts/AuthContext';
+import { ToastContainer } from '../components/Toast';
+import { useToast } from '../hooks/useToast';
+import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
@@ -2851,15 +2852,6 @@ export default function Results() {
               </div>
             )}
 
-            {/* Debug Info - Remove in production */}
-            {!loading && (
-              <div className="p-2 bg-gray-100 text-xs m-4 rounded">
-                Debug: loading={loading ? 'true' : 'false'}, error={error ? 'yes' : 'no'},
-                papers={papers.length}, allPapers={allPapers.length},
-                currentPapers={currentPapers.length}, currentPage={currentPage}
-              </div>
-            )}
-
             {/* Results List */}
             {!loading && !error && papers.length > 0 && (
               <>
@@ -2916,7 +2908,12 @@ export default function Results() {
             {!loading && !error && papers.length === 0 && (
               <div className="text-center py-20">
                 <BookOpen className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                <p className="text-gray-600 text-lg">No papers found for this topic</p>
+                <p className="text-gray-600 text-lg">
+                  No papers found{topic ? ` for "${topic}"` : ''}
+                </p>
+                <p className="text-gray-500 text-sm mt-2">
+                  Try a different search term or check the spelling.
+                </p>
               </div>
             )}
           </div>

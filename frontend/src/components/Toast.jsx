@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import { X, CheckCircle, AlertCircle, Info } from 'lucide-react';
 
 const Toast = ({ message, type = 'info', onClose, duration = 3000 }) => {
@@ -56,23 +56,6 @@ export const ToastContainer = ({ toasts, removeToast }) => {
       ))}
     </div>
   );
-};
-
-// Hook for managing toasts
-export const useToast = () => {
-  const [toasts, setToasts] = useState([]);
-
-  const showToast = (message, type = 'info', duration = 3000) => {
-    const id = Date.now() + Math.random();
-    setToasts((prev) => [...prev, { id, message, type, duration }]);
-    return id;
-  };
-
-  const removeToast = (id) => {
-    setToasts((prev) => prev.filter((toast) => toast.id !== id));
-  };
-
-  return { toasts, showToast, removeToast };
 };
 
 export default Toast;

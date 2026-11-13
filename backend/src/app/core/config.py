@@ -68,6 +68,15 @@ class Settings(BaseSettings):
     # user auth: see src/app/core/auth.py.
     BACKEND_API_KEY: Optional[str] = None
 
+    # Contact email sent with Unpaywall requests, as its API requires.
+    # Unpaywall rejects example.com addresses with HTTP 422, so the
+    # placeholder default below does NOT work live: set a real address
+    # in backend/.env (UNPAYWALL_EMAIL) or the environment. This field
+    # exists so the value is read through Settings (which loads
+    # backend/.env); reading os.getenv directly in the service missed
+    # the .env file because pydantic-settings does not export it.
+    UNPAYWALL_EMAIL: str = "research-flow@example.com"
+
     model_config = SettingsConfigDict(
         env_file=[str(BASE_DIR / ".env"), str(BASE_DIR.parent / ".env")],
         env_file_encoding='utf-8',
