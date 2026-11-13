@@ -15,13 +15,18 @@ stdlib unittest tests. From the backend/ directory run:
 not from src/app/tests/.)
 """
 
+import asyncio
+import time
 import unittest
 import xml.etree.ElementTree as ET
 from types import SimpleNamespace
 from unittest.mock import patch
 
+import jwt
 import pandas as pd
+from fastapi import HTTPException, Request
 
+from src.app.core import jwt_auth, rate_limit
 from src.app.services import (
     crossref_service,
     doaj_service,
@@ -745,6 +750,196 @@ class TestSummaryJsonRobustness(unittest.TestCase):
         self.assertIn("Problem X", summary["problem_statement"])
         self.assertNotIn("Unable to extract", summary["conclusion"])
         self.assertIn("clinics", summary["conclusion"])
+
+
+class TestJwtAuth(unittest.TestCase):
+    """Supabase JWT verification: local HS256, Auth API fallback, guards."""
+
+    def setUp(self):
+        jwt_auth._verified_cache.clear()
+
+    def _patch_settings(self, **overrides):
+        defaults = {
+            "SUPABASE_URL": "https://test.supabase.co",
+            "SUPABASE_KEY": "test-key",
+            "SUPABASE_JWT_SECRET": None,
+            "SUPABASE_JWT_AUDIENCE": "authenticated",
+            "AUTH_CACHE_TTL_SECONDS": 60,
+        }
+        defaults.update(overrides)
+        return [
+            patch.object(jwt_auth.settings, key, value)
+            for key, value in defaults.items()
+        ]
+
+    def _run_patches(self, patches):
+        for p in patches:
+            p.start()
+        self.addCleanup(lambda: [p.stop() for p in patches])
+
+    def _hs256_token(self, secret="test-secret", **claims):
+        payload = {
+            "sub": "user-123",
+            "email": "researcher@example.com",
+            "role": "authenticated",
+            "aud": "authenticated",
+            "iss": "https://test.supabase.co/auth/v1",
+            "exp": int(time.time()) + 3600,
+            "iat": int(time.time()),
+        }
+        payload.update(claims)
+        return jwt.encode(payload, secret, algorithm="HS256")
+
+    def test_missing_authorization_header_raises_401(self):
+        with self.assertRaises(HTTPException) as ctx:
+            asyncio.run(jwt_auth.get_current_user(None))
+        self.assertEqual(ctx.exception.status_code, 401)
+
+    def test_malformed_authorization_header_raises_401(self):
+        with self.assertRaises(HTTPException) as ctx:
+            asyncio.run(jwt_auth.get_current_user("Token abc"))
+        self.assertEqual(ctx.exception.status_code, 401)
+
+    def test_auth_not_configured_raises_503(self):
+        patches = self._patch_settings(SUPABASE_URL="", SUPABASE_KEY="")
+        self._run_patches(patches)
+        with self.assertRaises(HTTPException) as ctx:
+            jwt_auth.verify_supabase_jwt("anything")
+        self.assertEqual(ctx.exception.status_code, 503)
+
+    def test_hs256_valid_token_returns_user(self):
+        patches = self._patch_settings(SUPABASE_JWT_SECRET="test-secret")
+        self._run_patches(patches)
+        user = jwt_auth.verify_supabase_jwt(self._hs256_token())
+        self.assertEqual(user["id"], "user-123")
+        self.assertEqual(user["email"], "researcher@example.com")
+
+    def test_hs256_wrong_signature_raises_401(self):
+        patches = self._patch_settings(SUPABASE_JWT_SECRET="test-secret")
+        self._run_patches(patches)
+        bad = self._hs256_token(secret="someone-elses-secret")
+        with self.assertRaises(HTTPException) as ctx:
+            jwt_auth.verify_supabase_jwt(bad)
+        self.assertEqual(ctx.exception.status_code, 401)
+
+    def test_hs256_expired_token_raises_401(self):
+        patches = self._patch_settings(SUPABASE_JWT_SECRET="test-secret")
+        self._run_patches(patches)
+        old = self._hs256_token(exp=int(time.time()) - 10)
+        with self.assertRaises(HTTPException) as ctx:
+            jwt_auth.verify_supabase_jwt(old)
+        self.assertEqual(ctx.exception.status_code, 401)
+
+    def test_auth_api_fallback_returns_user_and_caches(self):
+        patches = self._patch_settings()
+        self._run_patches(patches)
+        fake_resp = SimpleNamespace(
+            status_code=200,
+            json=lambda: {"id": "user-456", "email": "a@b.c"},
+        )
+        with patch.object(jwt_auth.httpx, "get", return_value=fake_resp) as get:
+            first = jwt_auth.verify_supabase_jwt("opaque-token")
+            second = jwt_auth.verify_supabase_jwt("opaque-token")
+        self.assertEqual(first["id"], "user-456")
+        self.assertEqual(second["id"], "user-456")
+        # Second call served from the in-memory cache: one HTTP call.
+        self.assertEqual(get.call_count, 1)
+
+    def test_auth_api_rejection_raises_401(self):
+        patches = self._patch_settings()
+        self._run_patches(patches)
+        fake_resp = SimpleNamespace(status_code=401, json=lambda: {})
+        with patch.object(jwt_auth.httpx, "get", return_value=fake_resp):
+            with self.assertRaises(HTTPException) as ctx:
+                jwt_auth.verify_supabase_jwt("bad-token")
+        self.assertEqual(ctx.exception.status_code, 401)
+
+    def test_scoped_session_id_namespaces_by_user(self):
+        scoped = jwt_auth.scoped_session_id("user-1", "session-abc")
+        self.assertEqual(scoped, "user-1:session-abc")
+        self.assertNotEqual(
+            scoped, jwt_auth.scoped_session_id("user-2", "session-abc")
+        )
+
+
+def _fake_request(path, ip="10.0.0.1"):
+    """Minimal Starlette request for the rate limiter."""
+    scope = {
+        "type": "http",
+        "http_version": "1.1",
+        "method": "POST",
+        "scheme": "http",
+        "path": path,
+        "query_string": b"",
+        "headers": [],
+        "client": (ip, 1234),
+        "server": ("testserver", 80),
+    }
+    return Request(scope)
+
+
+class TestRateLimit(unittest.TestCase):
+    """Per-IP sliding-window limits for the LLM endpoints."""
+
+    def setUp(self):
+        rate_limit.reset_rate_limits()
+
+    def test_summarize_allows_ten_then_denies(self):
+        req = _fake_request("/api/v1/arxiv/summarize", ip="10.0.0.1")
+        for _ in range(10):
+            allowed, _ = rate_limit.check_rate_limit(req)
+            self.assertTrue(allowed)
+        allowed, retry_after = rate_limit.check_rate_limit(req)
+        self.assertFalse(allowed)
+        self.assertGreaterEqual(retry_after, 1)
+
+    def test_draft_allows_two_per_hour_then_denies(self):
+        req = _fake_request("/api/v1/draft/generate", ip="10.0.0.2")
+        for _ in range(2):
+            allowed, _ = rate_limit.check_rate_limit(req)
+            self.assertTrue(allowed)
+        allowed, retry_after = rate_limit.check_rate_limit(req)
+        self.assertFalse(allowed)
+        self.assertGreater(retry_after, 60)
+
+    def test_chat_has_its_own_larger_bucket(self):
+        req = _fake_request("/api/v1/chat/ask", ip="10.0.0.3")
+        for _ in range(20):
+            allowed, _ = rate_limit.check_rate_limit(req)
+            self.assertTrue(allowed)
+        allowed, _ = rate_limit.check_rate_limit(req)
+        self.assertFalse(allowed)
+
+    def test_buckets_are_independent_per_endpoint(self):
+        summarize = _fake_request("/api/v1/arxiv/summarize", ip="10.0.0.4")
+        chat = _fake_request("/api/v1/chat/ask", ip="10.0.0.4")
+        for _ in range(10):
+            rate_limit.check_rate_limit(summarize)
+        allowed, _ = rate_limit.check_rate_limit(summarize)
+        self.assertFalse(allowed)
+        # Exhausting summarize does not touch the chat bucket.
+        allowed, _ = rate_limit.check_rate_limit(chat)
+        self.assertTrue(allowed)
+
+    def test_limits_are_per_ip(self):
+        for ip in ("10.0.0.5", "10.0.0.6"):
+            req = _fake_request("/api/v1/arxiv/summarize", ip=ip)
+            for _ in range(10):
+                allowed, _ = rate_limit.check_rate_limit(req)
+                self.assertTrue(allowed)
+
+    def test_non_llm_paths_are_not_limited(self):
+        req = _fake_request("/api/v1/arxiv/search", ip="10.0.0.7")
+        for _ in range(50):
+            allowed, _ = rate_limit.check_rate_limit(req)
+            self.assertTrue(allowed)
+
+    def test_ready_route_exists(self):
+        from src.app.main import app
+
+        paths = {getattr(route, "path", None) for route in app.routes}
+        self.assertIn("/ready", paths)
+        self.assertIn("/health", paths)
 
 
 if __name__ == "__main__":

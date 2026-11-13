@@ -1,4 +1,5 @@
 import json
+import os
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 from pathlib import Path
@@ -6,9 +7,56 @@ from typing import Annotated, Optional
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
 
+
+def _sanitize_no_proxy() -> None:
+    """
+    Workaround for an httpx bug: httpx raises InvalidURL on bracketed
+    IPv6 entries such as [::1] in NO_PROXY, and the supabase client
+    (created at import time by db/client_supabase.py) builds an httpx
+    client that parses NO_PROXY. Strip bracketed entries; localhost
+    and 127.0.0.1 already cover the local Ollama server. Only the
+    process environment is changed, not the system. This runs at
+    import time in config.py because config is imported before any
+    module that creates an httpx or supabase client.
+    """
+    for key in ("NO_PROXY", "no_proxy"):
+        value = os.environ.get(key)
+        if not value:
+            continue
+        cleaned = ",".join(
+            part.strip() for part in value.split(",") if "[" not in part
+        )
+        if "localhost" not in cleaned:
+            cleaned = (cleaned + ",localhost,127.0.0.1") if cleaned else "localhost,127.0.0.1"
+        os.environ[key] = cleaned
+
+
+_sanitize_no_proxy()
+
 class Settings(BaseSettings):
     SUPABASE_URL: str = ""
     SUPABASE_KEY: str = ""
+    # Supabase JWT verification for protected backend routes.
+    # Supabase issues HS256 access tokens signed with the project's
+    # legacy JWT secret (this project predates the ES256 signing keys,
+    # so the JWKS endpoint returns an empty key set). When
+    # SUPABASE_JWT_SECRET is set, tokens are verified locally with
+    # PyJWT (fast, no network call). When it is unset, verification
+    # falls back to the Supabase Auth API (GET /auth/v1/user) using
+    # SUPABASE_URL + SUPABASE_KEY. The secret must come from the
+    # environment or backend/.env - never hard-code it, never commit
+    # it. Without SUPABASE_URL and SUPABASE_KEY, protected routes
+    # answer 503 (auth not configured) instead of failing open.
+    SUPABASE_JWT_SECRET: Optional[str] = None
+    SUPABASE_JWT_AUDIENCE: str = "authenticated"
+    # How long a verified token result is cached in memory (seconds).
+    # The Auth API fallback makes one network call per uncached token.
+    AUTH_CACHE_TTL_SECONDS: int = 60
+    # Per-IP rate limits for the expensive LLM endpoints. Draft
+    # generation takes minutes of CPU per call, so it is capped hard.
+    RATE_LIMIT_SUMMARIZE_PER_MINUTE: int = 10
+    RATE_LIMIT_CHAT_PER_MINUTE: int = 20
+    RATE_LIMIT_DRAFT_PER_HOUR: int = 2
     # LLM configuration - local Ollama only. No paid LLM APIs.
     # The FYP-era OpenAI / OpenRouter keys are removed on purpose:
     # this is a non-commercial research project and must stay zero-cost.

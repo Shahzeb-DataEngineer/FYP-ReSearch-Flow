@@ -7,7 +7,7 @@ import asyncio
 import uuid
 import logging
 from fastapi import APIRouter, Depends, HTTPException, Body
-from ....core.auth import verify_api_key
+from ....core.jwt_auth import get_current_user, scoped_session_id
 from ....services.chat_service import (
     ask_about_paper_with_session,
     load_session,
@@ -19,9 +19,17 @@ router = APIRouter()
 
 
 @router.post("/ask")
-async def chat_ask(request_data: dict = Body(...)):
+async def chat_ask(
+    request_data: dict = Body(...),
+    user: dict = Depends(get_current_user),
+):
     """
     Ask a question about a research paper using RAG.
+
+    Requires a logged-in user (Supabase JWT). The chat session is
+    scoped to that user: the client-supplied session id is stored
+    under "<user_id>:<session_id>", so one user cannot read or wipe
+    another user's history by guessing a UUID.
 
     Uses local FAISS for vector storage, LangChain for retrieval + generation,
     and Upstash Redis for server-side conversation history.
@@ -53,6 +61,9 @@ async def chat_ask(request_data: dict = Body(...)):
             raise HTTPException(status_code=400, detail="Question is required")
 
         session_id = request_data.get("session_id") or str(uuid.uuid4())
+        # Scope the session to the logged-in user; the client keeps
+        # using its own uuid, which is re-scoped on every call.
+        scoped_id = scoped_session_id(user["id"], session_id)
         pdf_text = request_data.get("pdf_text")
         pdf_url = request_data.get("pdf_url")
         abstract = request_data.get("abstract", "")
@@ -90,7 +101,7 @@ async def chat_ask(request_data: dict = Body(...)):
         # Run sync RAG in a thread so indexing + LLM work does not block the event loop.
         answer = await asyncio.to_thread(
             ask_about_paper_with_session,
-            session_id,
+            scoped_id,
             question,
             pdf_text,
             model,
@@ -117,20 +128,28 @@ async def chat_ask(request_data: dict = Body(...)):
         logging.error(f"Chat error: {e}", exc_info=True)
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        # Do not leak internals to the client: log the traceback,
+        # answer with a generic message.
         logging.error(f"Chat error: {e}", exc_info=True)
         raise HTTPException(
             status_code=500,
-            detail={"error": "Chat failed", "message": str(e)},
+            detail="Chat failed. Please try again.",
         )
 
 
 @router.get("/history/{session_id}")
-async def get_chat_history(session_id: str):
+async def get_chat_history(
+    session_id: str,
+    user: dict = Depends(get_current_user),
+):
     """
     Retrieve conversation history for a session from Redis.
+
+    Requires a logged-in user; the session id is scoped to that
+    user, so history from another user's session is unreachable.
     """
     try:
-        history = load_session(session_id)
+        history = load_session(scoped_session_id(user["id"], session_id))
         return {
             "status": "success",
             "session_id": session_id,
@@ -141,17 +160,25 @@ async def get_chat_history(session_id: str):
         logging.error(f"Error retrieving chat history: {e}", exc_info=True)
         raise HTTPException(
             status_code=500,
-            detail={"error": "Failed to retrieve chat history", "message": str(e)},
+            detail="Failed to retrieve chat history",
         )
 
 
-@router.delete("/history/{session_id}", dependencies=[Depends(verify_api_key)])
-async def clear_chat_history(session_id: str):
+@router.delete("/history/{session_id}")
+async def clear_chat_history(
+    session_id: str,
+    user: dict = Depends(get_current_user),
+):
     """
     Clear/delete a chat session from Redis.
+
+    Requires a logged-in user; only the session owner's history can
+    be deleted. (Previously this was guarded by the shared
+    BACKEND_API_KEY only, which any client could not know and which
+    did not scope by user at all.)
     """
     try:
-        delete_session(session_id)
+        delete_session(scoped_session_id(user["id"], session_id))
         return {
             "status": "success",
             "message": f"Session {session_id} cleared",
@@ -160,5 +187,5 @@ async def clear_chat_history(session_id: str):
         logging.error(f"Error clearing chat history: {e}", exc_info=True)
         raise HTTPException(
             status_code=500,
-            detail={"error": "Failed to clear chat history", "message": str(e)},
+            detail="Failed to clear chat history",
         )

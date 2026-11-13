@@ -7,10 +7,11 @@ default (see draft_service.analyze_figure).
 """
 import time
 import logging
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from typing import Optional
 
+from ....core.jwt_auth import get_current_user
 from ....services.pdf_service import download_pdf, extract_text_from_pdf
 from ....services.figure_extraction_service import extract_figures_from_pdf
 from ....services.draft_service import analyze_figure, generate_draft
@@ -27,9 +28,17 @@ class DraftRequest(BaseModel):
 
 
 @router.post("/generate")
-async def generate_draft_endpoint(request: DraftRequest):
+async def generate_draft_endpoint(
+    request: DraftRequest,
+    user: dict = Depends(get_current_user),
+):
     """
     Generate a structured research draft from an open-access paper.
+
+    Requires a logged-in user (Supabase JWT): a draft costs minutes
+    of CPU on the local model, so anonymous generation is not
+    offered. Search and summarization stay public; chat and drafts
+    are the authenticated features.
 
     1. Downloads and extracts text from the PDF
     2. Extracts figures/images from the PDF
@@ -140,11 +149,13 @@ async def generate_draft_endpoint(request: DraftRequest):
     except HTTPException:
         raise
     except Exception as e:
+        # Do not leak internals to the client: log the traceback,
+        # answer with a generic message.
         logger.error(f"Unexpected error during draft generation: {e}", exc_info=True)
         raise HTTPException(
             status_code=500,
             detail={
                 "error": "internal_error",
-                "message": f"An unexpected error occurred: {str(e)}"
+                "message": "An unexpected error occurred. Please try again.",
             },
         )
