@@ -6,6 +6,8 @@ import AuthLayout from './layouts/AuthLayout';
 import AuthCallback from './pages/AuthCallBack';
 import Results from './pages/Results';
 import PrismaReview from './pages/PrismaReview';
+import CitationGraph from './pages/CitationGraph';
+import MyLibrary from './pages/MyLibrary';
 import SavedSearches from './pages/SavedSearches';
 import Pricing from './pages/Pricing';
 import Payment from './pages/Payment';
@@ -21,6 +23,8 @@ function App() {
           <Route path="/" element={<Home />} />
           <Route path="/results" element={<Results />} />
           <Route path="/prisma" element={<PrismaReview />} />
+          <Route path="/citation-graph" element={<CitationGraph />} />
+          <Route path="/my-library" element={<MyLibrary />} />
           <Route path="/saved-searches" element={<SavedSearches />} />
           <Route path="/pricing" element={<Pricing />} />
           <Route path="/payment" element={<Payment />} />

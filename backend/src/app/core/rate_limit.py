@@ -59,6 +59,8 @@ def _limits_for_path(path: str) -> Optional[tuple[str, int, int]]:
         path.endswith("/review/deep")
         or path.endswith("/review/prisma")
         or path.endswith("/citations/verify")
+        or path.endswith("/gap-finder/graph")
+        or path.endswith("/library/ask")
     ):
         return ("llm", settings.RATE_LIMIT_SUMMARIZE_PER_MINUTE, 60)
     return None

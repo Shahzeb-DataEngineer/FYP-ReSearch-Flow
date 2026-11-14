@@ -17,6 +17,8 @@ from src.app.api.v1.routes.chat import router as chat_router
 from src.app.api.v1.routes.review import router as review_router
 from src.app.api.v1.routes.citations import router as citations_router
 from src.app.api.v1.routes.fulltext import router as fulltext_router
+from src.app.api.v1.routes.gap_finder import router as gap_finder_router
+from src.app.api.v1.routes.library import router as library_router
 
 api_router = APIRouter()
 
@@ -38,3 +40,5 @@ api_router.include_router(chat_router, prefix="/chat", tags=["Paper Chat (RAG)"]
 api_router.include_router(review_router, prefix="/review", tags=["Deep Review"])
 api_router.include_router(citations_router, prefix="/citations", tags=["Citation Verification"])
 api_router.include_router(fulltext_router, prefix="/papers", tags=["Full Text"])
+api_router.include_router(gap_finder_router, prefix="/gap-finder", tags=["Citation Graph and Gap Finder"])
+api_router.include_router(library_router, prefix="/library", tags=["Private Knowledge Graph"])

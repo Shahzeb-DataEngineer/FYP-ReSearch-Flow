@@ -84,6 +84,12 @@ class Settings(BaseSettings):
     # backend/.env (OPENALEX_API_KEY); never commit the real key.
     OPENALEX_API_KEY: Optional[str] = None
 
+    # Zotero (free API, read-only import for Move 6). A user API key
+    # is created at zotero.org/settings/keys; set both in backend/.env.
+    # Never commit the real key.
+    ZOTERO_API_KEY: Optional[str] = None
+    ZOTERO_USER_ID: Optional[str] = None
+
     # Upstash Redis Configuration
     UPSTASH_REDIS_REST_URL: Optional[str] = None
     UPSTASH_REDIS_REST_TOKEN: Optional[str] = None

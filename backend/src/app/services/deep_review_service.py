@@ -69,6 +69,8 @@ def _normalize_paper(paper: Dict[str, Any]) -> Dict[str, Any]:
     if authors and isinstance(authors[0], dict):
         authors = [a.get("name", "") for a in authors if a.get("name")]
     return {
+        "paperId": paper.get("paperId") or paper.get("id") or "",
+        "id": paper.get("paperId") or paper.get("id") or "",
         "title": (paper.get("title") or "Untitled").strip(),
         "abstract": (paper.get("abstract") or "").strip(),
         "authors": authors,
