@@ -55,7 +55,11 @@ def _limits_for_path(path: str) -> Optional[tuple[str, int, int]]:
         return ("chat", settings.RATE_LIMIT_CHAT_PER_MINUTE, 60)
     if path.endswith("/summarize") or path.endswith("/ask"):
         return ("llm", settings.RATE_LIMIT_SUMMARIZE_PER_MINUTE, 60)
-    if path.endswith("/review/deep") or path.endswith("/citations/verify"):
+    if (
+        path.endswith("/review/deep")
+        or path.endswith("/review/prisma")
+        or path.endswith("/citations/verify")
+    ):
         return ("llm", settings.RATE_LIMIT_SUMMARIZE_PER_MINUTE, 60)
     return None
 

@@ -205,6 +205,12 @@ export default function Navbar() {
 
       <div className="flex items-center space-x-2">
         <button
+          onClick={() => navigate('/prisma')}
+          className="hidden sm:inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-700 hover:text-black rounded-full border border-transparent hover:border-gray-300 hover:bg-gray-100 transition-colors"
+        >
+          PRISMA Review
+        </button>
+        <button
           onClick={handlePricing}
           className="hidden sm:inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-700 hover:text-black rounded-full border border-transparent hover:border-gray-300 hover:bg-gray-100 transition-colors"
         >

@@ -1093,6 +1093,43 @@ class TestPaperBadges(unittest.TestCase):
             badges = cvs.get_paper_badges("10.1234/retracted")
         self.assertTrue(badges["retracted"])
 
+    def test_openalex_oa_url_pdf_used_when_no_best_location(self):
+        from src.app.services import fulltext_service as fts
+
+        work = {
+            "id": "https://openalex.org/W999",
+            "display_name": "Attention Is All You Need",
+            "open_access": {"is_oa": True, "oa_status": "green", "oa_url": "https://arxiv.org/pdf/1706.03762"},
+            "best_location": {},
+            "primary_location": {},
+            "locations": [],
+        }
+        with patch.object(fts.requests, "get", return_value=_FakeOpenAlexResponse(200, work)):
+            result = fts.resolve_oa_copy("10.48550/arXiv.1706.03762")
+        self.assertTrue(result["available"])
+        self.assertEqual(result["pdf_url"], "https://arxiv.org/pdf/1706.03762")
+        self.assertEqual(result["source"], "OpenAlex")
+
+    def test_fetch_fulltext_falls_back_to_europe_pmc_when_pdf_blocked(self):
+        from src.app.services import fulltext_service as fts
+
+        with (
+            patch.object(fts, "resolve_oa_copy", return_value={
+                "doi": "10.1038/nature12373", "status": "available", "available": True,
+                "pdf_url": "https://www.nature.com/articles/nature12373.pdf",
+                "landing_url": "https://www.nature.com/articles/nature12373",
+                "oa_status": "bronze", "source": "Unpaywall", "title": "A test paper",
+                "message": "ok",
+            }),
+            patch.object(fts, "get_pdf_text_from_url", return_value=(None, "PDF not found.")),
+            patch.object(fts, "_europe_pmc_text_for_doi", return_value="Full text " * 50),
+            patch("src.app.services.chat_service.index_paper_text", return_value="abc123paperid"),
+        ):
+            result = fts.fetch_fulltext("10.1038/nature12373")
+        self.assertTrue(result["chat_ready"])
+        self.assertEqual(result["fulltext_source"], "Europe PMC")
+        self.assertGreater(result["text_chars"], 100)
+
     def test_unknown_doi_returns_none(self):
         from src.app.services import citation_verification_service as cvs
 
@@ -1474,6 +1511,274 @@ class TestOpenAlexApiKey(unittest.TestCase):
         self.assertEqual(calls[1], None)
         self.assertIsNotNone(badges)
         self.assertEqual(badges["citation_count"], 12345)
+
+
+class TestFulltextResolver(unittest.TestCase):
+    """Move 3: only a real OA PDF URL is ever returned."""
+
+    _WORK = {
+        "id": "https://openalex.org/W123",
+        "display_name": "A test paper",
+        "open_access": {"is_oa": True, "oa_status": "gold"},
+        "best_location": {
+            "url_for_pdf": "https://publisher.example.com/paper.pdf",
+            "landing_page_url": "https://publisher.example.com/paper",
+        },
+        "primary_location": {"landing_page_url": "https://publisher.example.com/paper"},
+        "locations": [],
+    }
+
+    def test_openalex_pdf_resolved(self):
+        from src.app.services import fulltext_service as fts
+
+        with patch.object(
+            fts.requests, "get", return_value=_FakeOpenAlexResponse(200, self._WORK)
+        ):
+            result = fts.resolve_oa_copy("10.1038/nature12373")
+        self.assertTrue(result["available"])
+        self.assertEqual(result["status"], "available")
+        self.assertEqual(result["pdf_url"], "https://publisher.example.com/paper.pdf")
+        self.assertEqual(result["source"], "OpenAlex")
+
+    def test_openalex_without_pdf_falls_back_to_unpaywall(self):
+        from src.app.services import fulltext_service as fts
+
+        work = dict(self._WORK, best_location={}, locations=[])
+        unpaywall_paper = {"pdf_url": "https://repo.example.com/paper.pdf", "url": "https://repo.example.com/paper", "oa_status": "green", "title": "A test paper"}
+        with (
+            patch.object(fts.requests, "get", return_value=_FakeOpenAlexResponse(200, work)),
+            patch.object(fts, "fetch_unpaywall_paper", return_value=unpaywall_paper),
+        ):
+            result = fts.resolve_oa_copy("10.1234/oa.1")
+        self.assertTrue(result["available"])
+        self.assertEqual(result["pdf_url"], "https://repo.example.com/paper.pdf")
+        self.assertEqual(result["source"], "Unpaywall")
+
+    def test_paywalled_doi_reports_not_available_with_no_pdf_url(self):
+        from src.app.services import fulltext_service as fts
+
+        work = dict(self._WORK, best_location={}, locations=[])
+        with (
+            patch.object(fts.requests, "get", return_value=_FakeOpenAlexResponse(200, work)),
+            patch.object(fts, "fetch_unpaywall_paper", return_value=None),
+        ):
+            result = fts.resolve_oa_copy("10.1234/paywalled")
+        self.assertFalse(result["available"])
+        self.assertEqual(result["status"], "not_available")
+        self.assertIsNone(result["pdf_url"])
+        self.assertIsNone(result["source"])
+
+    def test_unknown_doi_reports_not_available(self):
+        from src.app.services import fulltext_service as fts
+
+        with (
+            patch.object(fts.requests, "get", return_value=_FakeOpenAlexResponse(404, {})),
+            patch.object(fts, "fetch_unpaywall_paper", return_value=None),
+        ):
+            result = fts.resolve_oa_copy("10.9999/bogus-doi")
+        self.assertFalse(result["available"])
+        self.assertIsNone(result["pdf_url"])
+
+    def test_normalize_doi_strips_prefix(self):
+        from src.app.services.fulltext_service import normalize_doi
+
+        self.assertEqual(normalize_doi("https://doi.org/10.1234/ABC "), "10.1234/ABC")
+        self.assertEqual(normalize_doi("doi:10.1/x"), "10.1/x")
+        self.assertEqual(normalize_doi(""), "")
+
+    def test_fetch_fulltext_indexes_extracted_text(self):
+        from src.app.services import fulltext_service as fts
+
+        with (
+            patch.object(fts, "resolve_oa_copy", return_value={
+                "doi": "10.1234/oa.1", "status": "available", "available": True,
+                "pdf_url": "https://publisher.example.com/paper.pdf",
+                "landing_url": "https://publisher.example.com/paper",
+                "oa_status": "gold", "source": "OpenAlex", "title": "A test paper",
+                "message": "ok",
+            }),
+            patch.object(fts, "get_pdf_text_from_url", return_value=("Full text " * 50, None)),
+            patch("src.app.services.chat_service.index_paper_text", return_value="abc123paperid") as mock_index,
+        ):
+            result = fts.fetch_fulltext("10.1234/oa.1")
+        self.assertTrue(result["chat_ready"])
+        self.assertEqual(result["paper_id"], "abc123paperid")
+        self.assertGreater(result["text_chars"], 100)
+        mock_index.assert_called_once()
+
+    def test_fetch_fulltext_reports_download_failure_honestly(self):
+        from src.app.services import fulltext_service as fts
+
+        with (
+            patch.object(fts, "resolve_oa_copy", return_value={
+                "doi": "10.1234/oa.1", "status": "available", "available": True,
+                "pdf_url": "https://publisher.example.com/paper.pdf",
+                "landing_url": None, "oa_status": "gold", "source": "OpenAlex",
+                "title": "A test paper", "message": "ok",
+            }),
+            patch.object(fts, "get_pdf_text_from_url", return_value=(None, "PDF not found.")),
+        ):
+            result = fts.fetch_fulltext("10.1234/oa.1")
+        self.assertEqual(result["status"], "download_failed")
+        self.assertFalse(result["chat_ready"])
+        self.assertIsNone(result["paper_id"])
+        # The PDF URL itself is still reported: it was real, extraction failed.
+        self.assertEqual(result["pdf_url"], "https://publisher.example.com/paper.pdf")
+
+
+class TestPrismaReview(unittest.TestCase):
+    """Move 4: dual-pass screening, adjudication and PRISMA flow counts."""
+
+    _PAPERS = [
+        {
+            "title": "Sleep and memory consolidation",
+            "abstract": "Sleep deprivation impairs memory consolidation in healthy adults. We tested 40 participants in a randomized trial.",
+            "authors": ["A. Author"],
+            "year": 2023,
+            "venue": "Nature",
+            "doi": "10.1234/sleep1",
+            "url": "https://example.com/1",
+            "citation_count": 50,
+            "source": "OpenAlex",
+        },
+        {
+            "title": "Caffeine and sprint performance in cyclists",
+            "abstract": "Caffeine improved sprint times in trained cyclists over a six week trial with 30 participants.",
+            "authors": ["B. Author"],
+            "year": 2022,
+            "venue": "Sports Med",
+            "doi": "10.1234/caffeine1",
+            "url": "https://example.com/2",
+            "citation_count": 5,
+            "source": "OpenAlex",
+        },
+    ]
+
+    def test_keyword_screen_includes_matching_paper(self):
+        from src.app.services.prisma_service import _keyword_screen
+
+        result = _keyword_screen(self._PAPERS[0], ["sleep", "memory"], ["animal"])
+        self.assertEqual(result["decision"], "include")
+
+    def test_keyword_screen_excludes_on_exclusion_term(self):
+        from src.app.services.prisma_service import _keyword_screen
+
+        result = _keyword_screen(self._PAPERS[0], ["sleep"], ["randomized"])
+        self.assertEqual(result["decision"], "exclude")
+        self.assertEqual(result["category"], "meets exclusion criteria")
+
+    def test_screen_paper_without_abstract_excludes(self):
+        from src.app.services.prisma_service import screen_paper
+
+        paper = dict(self._PAPERS[0], abstract="")
+        result = screen_paper(None, paper, "sleep and memory", ["sleep"], [])
+        self.assertEqual(result["decision"], "exclude")
+        self.assertEqual(result["category"], "no abstract available")
+
+    def test_screen_paper_parses_llm_json(self):
+        from src.app.services.prisma_service import screen_paper
+
+        fake = _FakeLLM(
+            '{"decision": "include", "category": "not relevant to research question", '
+            '"reason": "Randomized trial of sleep and memory in adults."}'
+        )
+        result = screen_paper(fake, self._PAPERS[0], "sleep and memory", ["sleep"], [])
+        self.assertEqual(result["decision"], "include")
+        self.assertFalse(result["needs_human_review"])
+
+    def test_adjudicate_disagreement_is_excluded_and_flagged(self):
+        from src.app.services.prisma_service import adjudicate
+
+        pass1 = {"decision": "include", "category": "", "reason": "Matches criteria.", "needs_human_review": False}
+        pass2 = {"decision": "exclude", "category": "not relevant to research question", "reason": "Not relevant.", "needs_human_review": False}
+        verdict = adjudicate(pass1, pass2)
+        self.assertEqual(verdict["final_decision"], "exclude")
+        self.assertTrue(verdict["disagreement"])
+        self.assertTrue(verdict["needs_human_review"])
+
+    def test_adjudicate_agreement_include_stays_included(self):
+        from src.app.services.prisma_service import adjudicate
+
+        verdict = adjudicate(
+            {"decision": "include", "category": "", "reason": "Matches.", "needs_human_review": False},
+            {"decision": "include", "category": "", "reason": "Matches.", "needs_human_review": False},
+        )
+        self.assertEqual(verdict["final_decision"], "include")
+        self.assertFalse(verdict["disagreement"])
+
+    def test_run_prisma_flow_counts_add_up(self):
+        from src.app.services import prisma_service as ps
+
+        class SeqLLM:
+            def __init__(self, replies):
+                self.replies = list(replies)
+
+            def invoke(self, prompt):
+                return SimpleNamespace(content=self.replies.pop(0))
+
+        include_json = '{"decision": "include", "category": "does not meet inclusion criteria", "reason": "Randomized trial in adults."}'
+        exclude_json = '{"decision": "exclude", "category": "not relevant to research question", "reason": "About caffeine and cycling, not sleep."}'
+        llm = SeqLLM([include_json, include_json, exclude_json, exclude_json])
+        with (
+            patch.object(ps, "derive_subqueries", return_value=["sleep memory"]),
+            patch.object(ps, "search_papers", return_value=list(self._PAPERS)),
+            patch.object(ps, "get_chat_model", return_value=llm),
+        ):
+            result = ps.run_prisma_review(
+                "does sleep affect memory", ["sleep"], [], max_papers=5
+            )
+        flow = result["prisma_flow"]
+        self.assertEqual(flow["identified"], 2)
+        self.assertEqual(flow["screened"], 2)
+        self.assertEqual(flow["included"], 1)
+        self.assertEqual(flow["excluded"], 1)
+        self.assertEqual(flow["identified"], flow["screened"])
+        self.assertEqual(flow["included"] + flow["excluded"], flow["screened"])
+        self.assertEqual(len(result["screening"]), 2)
+        self.assertEqual(result["screening"][0]["final_decision"], "include")
+        self.assertEqual(result["screening"][1]["final_decision"], "exclude")
+        self.assertIn("human judgement", result["screening_accuracy_note"].lower())
+        self.assertIn("human", result["verification_note"].lower())
+
+    def test_run_prisma_no_results(self):
+        from src.app.services import prisma_service as ps
+
+        with (
+            patch.object(ps, "derive_subqueries", return_value=["nothing matches this"]),
+            patch.object(ps, "search_papers", return_value=[]),
+            patch.object(ps, "get_chat_model", return_value=_FakeLLM("{}")),
+        ):
+            result = ps.run_prisma_review("nothing matches this", [], [])
+        self.assertEqual(result["status"], "no_results")
+        self.assertEqual(result["prisma_flow"]["identified"], 0)
+        self.assertEqual(result["prisma_flow"]["included"], 0)
+
+    def test_prisma_route_is_registered(self):
+        # FastAPI keeps included routers lazy, so check the routers
+        # themselves plus the api_router includes for both prefixes.
+        from src.app.api.v1.api_router import api_router
+        from src.app.api.v1.routes import fulltext as fulltext_routes
+        from src.app.api.v1.routes import review as review_routes
+
+        review_paths = {getattr(r, "path", None) for r in review_routes.router.routes}
+        fulltext_paths = {getattr(r, "path", None) for r in fulltext_routes.router.routes}
+        self.assertIn("/prisma", review_paths)
+        self.assertIn("/fulltext", fulltext_paths)
+        included = [
+            getattr(getattr(r, "include_context", None), "prefix", None)
+            for r in api_router.routes
+        ]
+        self.assertIn("/review", included)
+        self.assertIn("/papers", included)
+
+    def test_prisma_endpoint_shares_llm_rate_limit(self):
+        rate_limit.reset_rate_limits()
+        req = _fake_request("/api/v1/review/prisma", ip="10.0.0.9")
+        for _ in range(10):
+            allowed, _ = rate_limit.check_rate_limit(req)
+            self.assertTrue(allowed)
+        allowed, _ = rate_limit.check_rate_limit(req)
+        self.assertFalse(allowed)
 
 
 if __name__ == "__main__":
