@@ -38,10 +38,17 @@ def get_ollama_base_url() -> str:
 
 
 def get_chat_model(model: str | None = None, temperature: float = 0.0):
-    """Return a LangChain ChatOllama for the configured local model."""
+    """Return a LangChain ChatOllama for the configured local model.
+
+    Move 7: an explicit model wins, otherwise the active model picked
+    in the model picker (persisted selection) wins, otherwise the
+    settings default.
+    """
     from langchain_ollama import ChatOllama
 
-    name = (model or settings.OLLAMA_CHAT_MODEL or "qwen2.5:3b").strip()
+    from .model_registry import get_active_chat_model
+
+    name = (model or get_active_chat_model() or "qwen2.5:3b").strip()
     return ChatOllama(
         model=name,
         base_url=settings.OLLAMA_BASE_URL,
@@ -54,8 +61,10 @@ def get_embeddings():
     """Return a LangChain OllamaEmbeddings for nomic-embed-text."""
     from langchain_ollama import OllamaEmbeddings
 
+    from .model_registry import get_active_embed_model
+
     return OllamaEmbeddings(
-        model=settings.OLLAMA_EMBED_MODEL,
+        model=get_active_embed_model(),
         base_url=settings.OLLAMA_BASE_URL,
     )
 

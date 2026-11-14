@@ -22,10 +22,13 @@ from the extractive fallback of the same text instead of an
 """
 import logging
 import json
+import time
 import re
 from typing import Dict, List, Optional
 
 from .llm_provider import get_chat_model, check_ollama_available
+from .usage_meter import record_llm_call
+from .model_registry import get_active_chat_model
 
 MAX_CHUNK_CHARS = 12000
 
@@ -55,6 +58,7 @@ def summarize_with_llm(text: str, model: Optional[str] = None) -> Optional[Dict[
         logging.warning("Ollama unreachable, using extractive fallback summary")
         return _extractive_fallback(text)
 
+    _started = time.time()
     try:
         chunks = _chunk_text(text, MAX_CHUNK_CHARS)
         logging.info("Summarizing %d chunk(s) with local Ollama model", len(chunks))
@@ -67,13 +71,18 @@ def summarize_with_llm(text: str, model: Optional[str] = None) -> Optional[Dict[
         if not chunk_summaries:
             return _extractive_fallback(text)
         if len(chunk_summaries) == 1:
-            return chunk_summaries[0]
-        merged = {field: " ".join(s.get(field, "") for s in chunk_summaries) for field in SUMMARY_FIELDS}
-        for field in SUMMARY_FIELDS:
-            merged[field] = merged[field].strip()[:2000]
-        # Keep the good LLM fields and fill only the missing ones from the
-        # extractive fallback, instead of discarding the whole merge.
-        return _fill_missing_fields(merged, text)
+            _result = chunk_summaries[0]
+        else:
+            merged = {field: " ".join(s.get(field, "") for s in chunk_summaries) for field in SUMMARY_FIELDS}
+            for field in SUMMARY_FIELDS:
+                merged[field] = merged[field].strip()[:2000]
+            # Keep the good LLM fields and fill only the missing ones from the
+            # extractive fallback, instead of discarding the whole merge.
+            _result = _fill_missing_fields(merged, text)
+        record_llm_call("summarize", get_active_chat_model(), text,
+                        " ".join(str(v) for v in _result.values()),
+                        time.time() - _started)
+        return _result
     except Exception as e:
         logging.error("Ollama summarization failed, using extractive fallback: %s", e, exc_info=True)
         return _extractive_fallback(text)

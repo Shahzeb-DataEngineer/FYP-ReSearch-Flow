@@ -31,6 +31,9 @@ from . import openalex_service, semantic_scholar_service
 from .crossref_service import fetch_crossref_papers
 from .europe_pmc_service import fetch_europe_pmc_papers
 from .llm_provider import get_chat_model
+from .model_registry import get_active_chat_model
+from .usage_meter import record_llm_call
+import time
 from .openalex_service import fetch_openalex_papers
 from .semantic_scholar_service import fetch_semantic_scholar_papers
 
@@ -305,6 +308,7 @@ def synthesize_report(question: str, findings: List[Dict[str, Any]]) -> str:
 
 def run_deep_review(question: str, max_papers: int = 5) -> Dict[str, Any]:
     """Run the full Deep Review pipeline for one research question."""
+    _started = time.time()
     subqueries = derive_subqueries(question)
     raw_papers, search_unavailable = search_papers_with_status(subqueries, per_query=10)
     screened = screen_papers(raw_papers, max_papers)
@@ -329,6 +333,9 @@ def run_deep_review(question: str, max_papers: int = 5) -> Dict[str, Any]:
     llm = get_chat_model(temperature=0.0)
     findings = [extract_finding(llm, paper, i + 1) for i, paper in enumerate(screened)]
     report = synthesize_report(question, findings)
+    record_llm_call("deep_review", get_active_chat_model(),
+                    question + "\n" + "\n".join(f.get("problem", "") + " " + f.get("key_result", "") for f in findings),
+                    report, time.time() - _started)
     return {
         "status": "success",
         "question": question,

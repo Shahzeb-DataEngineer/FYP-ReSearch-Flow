@@ -1961,6 +1961,7 @@ export const draftAPI = {
         authors: metadata.authors || '',
         abstract: metadata.abstract || '',
       };
+      if (metadata.papers) requestBody.papers = metadata.papers;
 
       const response = await fetch(`${API_BASE_URL}/draft/generate`, {
         method: 'POST',
@@ -2009,7 +2010,52 @@ export const draftAPI = {
         { originalError: error.message }
       );
     }
-  }
+  },
+
+  /**
+   * Pre-export check for a draft: retraction and contradiction check
+   * for the cited papers. Export is blocked when a cited paper is retracted.
+   */
+  async checkDraft(citations) {
+    const response = await fetch(`${API_BASE_URL}/draft/check`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ citations }),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new APIError(data.detail?.message || data.detail || 'Draft check failed', response.status, data.detail);
+    }
+    return data;
+  },
+};
+
+// Model picker and cost meter (Move 7): local Ollama models and usage.
+export const modelsAPI = {
+  async listModels() {
+    const response = await fetch(`${API_BASE_URL}/models`);
+    const data = await response.json();
+    if (!response.ok) throw new APIError('Failed to list local models', response.status, data);
+    return data;
+  },
+
+  async selectModel(model, kind = 'chat') {
+    const response = await fetch(`${API_BASE_URL}/models/select`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model, kind }),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new APIError(data.detail || 'Failed to switch model', response.status, data);
+    return data;
+  },
+
+  async getUsage() {
+    const response = await fetch(`${API_BASE_URL}/usage`);
+    const data = await response.json();
+    if (!response.ok) throw new APIError('Failed to load usage', response.status, data);
+    return data;
+  },
 };
 
 // Unified Chat API — uses /chat/ask with Redis session persistence

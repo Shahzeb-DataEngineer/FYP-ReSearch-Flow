@@ -45,3 +45,7 @@ docs/FYP_Final_Report.md
 docs/images/
 scratch/
 
+
+# Move 7 local machine state (never commit)
+backend/data/model_selection.json
+backend/data/usage_log.jsonl

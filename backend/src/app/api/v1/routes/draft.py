@@ -14,7 +14,7 @@ from typing import Optional
 from ....core.jwt_auth import get_current_user
 from ....services.pdf_service import download_pdf, extract_text_from_pdf
 from ....services.figure_extraction_service import extract_figures_from_pdf
-from ....services.draft_service import analyze_figure, generate_draft
+from ....services.draft_service import analyze_figure, check_draft_references, generate_draft
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -25,6 +25,33 @@ class DraftRequest(BaseModel):
     title: Optional[str] = ""
     authors: Optional[str] = ""
     abstract: Optional[str] = ""
+    papers: Optional[list] = None
+
+
+class DraftCheckRequest(BaseModel):
+    citations: Optional[list] = None
+    papers: Optional[list] = None
+
+
+@router.post("/check")
+async def check_draft_endpoint(request: DraftCheckRequest):
+    """Pre-export check: retraction + contradiction check for cited papers.
+
+    Public (like citation verification): it only reads OpenAlex
+    badges for the DOIs supplied. Export is blocked when any cited
+    paper is retracted; contradictions are warnings only.
+    """
+    citations = request.citations or request.papers or []
+    if not citations:
+        raise HTTPException(status_code=400, detail="citations (or papers) are required")
+    try:
+        return check_draft_references(citations)
+    except Exception as e:
+        logger.error("Draft pre-export check failed: %s", e, exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail={"error": "check_failed", "message": "Draft check failed. Please try again."},
+        )
 
 
 @router.post("/generate")
@@ -110,6 +137,7 @@ async def generate_draft_endpoint(
             authors=request.authors or "",
             abstract=request.abstract or "",
             figures_found=len(figures),
+            papers=request.papers,
         )
 
         if draft is None:
@@ -127,6 +155,9 @@ async def generate_draft_endpoint(
         return {
             "status": "success",
             "draft": draft,
+            "sentence_support": draft.get("sentence_support", []),
+            "support_summary": draft.get("support_summary", {}),
+            "extraction_table": draft.get("extraction_table", []),
             "figure_analyses": figure_analyses,
             "metadata": {
                 "figures_found": len(figures),

@@ -1,8 +1,10 @@
 # Deployment guide - ReSearch Flow
 
-How to ship ReSearch Flow live for real researchers. Last updated 2026-11-13.
-Nothing here is deployed yet: this guide prepares the ship, it does not
-execute it. A hosting account and a host choice are still needed.
+How to ship ReSearch Flow live for real researchers. Last updated 2026-11-14.
+Railway is the chosen host (user decision 2026-11-13). Nothing is
+deployed yet: the repo is Railway-ready (see below), the deploy itself
+is a dashboard job. No Railway CLI, config, or token exists in this
+environment, so nothing here executes a deploy.
 
 ## What runs in production
 
@@ -98,6 +100,151 @@ Frontend (build-time, see `frontend/.env.example`):
 | `VITE_SUPABASE_ANON_KEY` | yes | Same publishable key as the backend |
 | `VITE_API_URL` | no | Default `/api/v1`; nginx proxies `/api/` to the backend, so leave it unset in Docker |
 
+## Deploy on Railway (chosen host)
+
+Railway is the chosen host. Nothing is deployed yet: the repo is
+Railway-ready, the deploy itself is a dashboard job. Config as code
+lives in the repo: `railway.json` at the root (backend),
+`frontend/railway.json`, `ollama/railway.json`. Railway reads the
+config file at each service's Root Directory, so set the root
+directory per service as below.
+
+### Services (three, one project)
+
+1. **Backend** - new service from the GitHub repo, Root Directory:
+   repo root (the default, do not change). The root `railway.json`
+   applies: Dockerfile builder, `backend/Dockerfile`, start command
+   `uvicorn` on `$PORT`, healthcheck `/health`. Generate a public
+   domain (Settings, Networking).
+2. **Frontend** - same repo, second service, Root Directory:
+   `frontend`. `frontend/railway.json` applies: Dockerfile builder,
+   nginx serves the Vite build and listens on `$PORT`. Generate a
+   public domain.
+3. **Ollama** - same repo, third service, Root Directory: `ollama`.
+   `ollama/railway.json` applies: builds `ollama/Dockerfile` (from
+   the official `ollama/ollama` image, plus an entrypoint that pulls
+   the models on first boot). Do NOT generate a public domain: the
+   Ollama API has no auth. Attach a Volume mounted at `/root/.ollama`
+   (this is where models live, about 2.3 GB for the two models).
+   One replica only: a volume cannot attach to multiple replicas.
+
+Create the Ollama service first: its first boot pulls about 2.2 GB
+of models and takes several minutes. Then the backend, then the
+frontend (the frontend build needs the backend's public URL).
+
+### Environment variables
+
+Backend service (Variables tab). Values come from the local
+`backend/.env`, never from a committed file:
+
+- `SUPABASE_URL`, `SUPABASE_KEY`, `SUPABASE_JWT_SECRET`,
+  `OPENALEX_API_KEY`, `UNPAYWALL_EMAIL`, `CORS_ORIGINS`,
+  `BACKEND_API_KEY` (optional, legacy shared-key guard).
+- `OLLAMA_BASE_URL=http://ollama.railway.internal:11434` - replace
+  `ollama` with the Ollama service's actual name if you name it
+  differently; port 11434 is Ollama's listen port inside its
+  container. Private-network traffic between the services is not
+  billed for egress.
+- Optional: `OLLAMA_CHAT_MODEL` (default `qwen2.5:3b`),
+  `OLLAMA_EMBED_MODEL` (default `nomic-embed-text`), `CORE_API_KEY`,
+  `SEMANTIC_SCHOLAR_API_KEY`, `RATE_LIMIT_SUMMARIZE_PER_MINUTE` /
+  `RATE_LIMIT_CHAT_PER_MINUTE` / `RATE_LIMIT_DRAFT_PER_HOUR`,
+  `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` (persistent
+  chat sessions; without them sessions clear on backend restart).
+- `CORS_ORIGINS`: JSON list with the frontend's Railway public URL,
+  e.g. `["https://<frontend>.up.railway.app"]`. Set this AFTER
+  generating the frontend domain, then redeploy the backend.
+
+Frontend service (Variables tab). These are build-time: Vite bakes
+`VITE_*` into the bundle, and the Dockerfile declares each as an
+`ARG` so Railway passes the service variable into the build.
+Changing one needs a rebuild (redeploy), not just a restart:
+
+- `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` - same Supabase
+  project as the backend; the anon key is publishable by design.
+- `VITE_API_URL=https://<backend>.up.railway.app/api/v1` - the
+  backend's public domain. Set this AFTER generating the backend
+  domain, then redeploy the frontend.
+- The frontend's nginx `/api/` proxy (used by docker compose) is
+  unused on Railway: the browser calls the backend public URL
+  directly.
+
+Ollama service: no variables needed. `OLLAMA_HOST` is already set to
+`0.0.0.0:11434` in `ollama/Dockerfile` so the private network can
+reach it.
+
+### Model pull step
+
+Automatic. `ollama/entrypoint.sh` starts `ollama serve`, waits for
+it, then runs `ollama pull qwen2.5:3b` and
+`ollama pull nomic-embed-text` for any model not already on the
+volume. First boot takes several minutes (about 2.2 GB download).
+Check the Ollama service logs for "Ollama ready with models" and
+confirm with the backend's `/ready` (`ollama: true`) or
+`GET /api/v1/models` on the backend, which should list both models.
+If a model ever needs re-pulling, redeploy the service with the
+volume attached: the pull is skipped when the model is already on
+the volume.
+
+### Expected cost (Railway, usage-based)
+
+Rates checked 2026-11-14 from Railway's pricing page; verify before
+committing, Railway changes prices. Hobby is $5/month and includes
+$5 of usage; Pro is $20/month and includes $20. Past that: $20 per
+vCPU per month, $10 per GB of RAM per month, $0.15 per GB of volume
+storage per month, $0.05 per GB of public egress. Metered per second
+on actual use; private-network traffic is not billed.
+
+- The Ollama service dominates the bill: the 3B model needs about
+  8 GB RAM, which is about $80/month in RAM alone at $10/GB/month,
+  plus its CPU while inference runs. Hobby caps a single replica at
+  8 vCPU / 8 GB, which is exactly the 3B model's size: it fits, with
+  no headroom for the 7B model (that needs Pro and about 16 GB, about
+  $160/month in RAM alone).
+- Backend + frontend are small (well under 1 GB RAM each when idle):
+  roughly $10-20/month each in RAM plus a little CPU.
+- Realistic total for the 3B setup, always on: about $100-130/month.
+  That is more than the $40-75/month VPS estimate in the compose
+  section below: Railway charges for the RAM the model holds, a VPS
+  charges a flat box price. If that is too much, the cheaper ship is
+  the VPS path below, or stop the Ollama service when nobody is using
+  it (usage is metered, so stopped is not billed; the models stay on
+  the volume).
+- Volume: about 2.3 GB of models at $0.15/GB/month is under
+  $0.50/month.
+
+### Verify after deploy
+
+- Backend: `https://<backend>.up.railway.app/health` returns
+  `{"status":"healthy"}`; `/ready` returns `{"status":"ready",
+  "ollama":true}` (`degraded` + `ollama:false` means the Ollama
+  service or `OLLAMA_BASE_URL` is wrong).
+- Backend: `GET https://<backend>.up.railway.app/api/v1/models`
+  lists `qwen2.5:3b` and `nomic-embed-text`.
+- Frontend: open the frontend URL, search works without login; login
+  works (add the frontend Railway domain to the Supabase redirect
+  URLs: Supabase dashboard, Authentication, URL Configuration).
+- Protected route without token: `POST /api/v1/chat/ask` with no
+  token returns 401.
+
+### Known limits on Railway
+
+- CPU inference is slow: abstract summaries about 1-2 minutes,
+  full-paper summaries minutes (2-5 on a 4 vCPU box; Railway CPU is
+  shared, expect the slow end). Deep Review with 5 papers takes
+  several minutes. The frontend shows progress; it does not hang
+  silently.
+- The backend is a single process with no worker pool; one heavy
+  request uses the whole CPU model. Rate limits (10 summarize/min,
+  20 chat/min, 2 drafts/hour per IP) still apply.
+- Railway volumes attach to one replica only: keep all three
+  services at 1 replica.
+- The Ollama service has no public domain and no healthcheck in
+  `ollama/railway.json` on purpose: it is a private-only service,
+  and the backend `/ready` endpoint is the real check.
+- Hobby plan: 5 GB total volume storage across the project; the
+  models use about 2.3 GB, which fits. Pro allows up to 1 TB.
+
 ## Deploy steps (Docker Compose)
 
 1. Create the host (4 vCPU, 8 GB minimum) and point the domain at it.
@@ -131,7 +278,10 @@ Frontend (build-time, see `frontend/.env.example`):
 
 ## What is still manual
 
-- The hosting account and the host choice. No account exists yet.
+- Railway is the chosen host. The Railway account, the project, and
+  the three dashboard services above still need creating (no Railway
+  CLI, config, or token exists in this environment, so the deploy is
+  a dashboard job, not something this repo can run).
 - TLS termination and the domain's DNS records.
 - Supabase redirect URLs for the production domain (step 9).
 - The old legacy Supabase anon JWT is still valid. Rotating the

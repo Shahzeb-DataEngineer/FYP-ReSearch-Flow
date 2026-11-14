@@ -27,6 +27,8 @@ from langchain_community.vectorstores import FAISS
 from langchain_classic.retrievers import EnsembleRetriever
 
 from .llm_provider import get_models
+from .model_registry import get_active_chat_model
+from .usage_meter import record_llm_call
 
 # In-memory FAISS index per paper (built fresh, rebuilt after restart).
 _faiss_stores: Dict[str, FAISS] = {}
@@ -412,6 +414,7 @@ def ask_about_paper(
     if not paper_text or len(paper_text.strip()) < 100:
         raise ValueError("Paper text too short or empty for Q&A")
 
+    _started = time.time()
     try:
         embeddings, llm = _get_models(model)
         paper_id = _make_paper_id(paper_text)
@@ -488,7 +491,12 @@ def ask_about_paper(
         answer = result.get("answer")
         if not isinstance(answer, str):
             answer = str(answer) if answer is not None else ""
-        return answer.strip() if answer else None
+        answer = answer.strip() if answer else None
+        if answer:
+            record_llm_call("ask", model or get_active_chat_model(),
+                            question + "\n" + paper_text[:4000], answer,
+                            time.time() - _started)
+        return answer
 
     except ValueError:
         raise
