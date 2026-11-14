@@ -59,6 +59,17 @@ What changed, in short:
 
 ## Still open
 
+- **OpenAlex API key**: a free key was requested (2026-11-13) and is set
+  in the local `backend/.env` as `OPENALEX_API_KEY` (gitignored, never
+  committed). The backend sends it as an `Authorization: Bearer` header
+  on every OpenAlex call (search, badges, citation network, trends) and
+  retries once without the key on a 403 `key_not_activated`, so the app
+  works before and after activation. The key is still pending activation:
+  the user must click the activation link in the key-request email
+  (expires 2026-11-20). Verified live 2026-11-13: a keyed request returns
+  403 `key_not_activated` as expected, and the keyless fallback returned
+  real badge data; the keyless search hit the shared-IP 429 budget the
+  same day.
 - **UNPAYWALL_EMAIL**: set locally (2026-11-13) to the user's Gmail in
   `backend/.env` (gitignored, never committed) and verified live: a DOI
   lookup now returns real open-access data instead of HTTP 422. Note:

@@ -942,5 +942,539 @@ class TestRateLimit(unittest.TestCase):
         self.assertIn("/health", paths)
 
 
+class TestCitationVerification(unittest.TestCase):
+    """Move 2: claim verification never claims support it does not have."""
+
+    _SOURCE = (
+        "Sleep deprivation impairs memory consolidation in healthy adults. "
+        "Participants who slept for eight hours recalled significantly more word pairs "
+        "than participants kept awake overnight. "
+        "The effect was strongest for declarative memory tasks."
+    )
+
+    def test_token_overlap_matching_claim_scores_high(self):
+        from src.app.services.citation_verification_service import token_overlap_score
+
+        score = token_overlap_score(
+            "sleep deprivation impairs memory consolidation",
+            "Sleep deprivation impairs memory consolidation in healthy adults.",
+        )
+        self.assertGreaterEqual(score, 0.8)
+
+    def test_token_overlap_unrelated_claim_scores_low(self):
+        from src.app.services.citation_verification_service import token_overlap_score
+
+        score = token_overlap_score(
+            "caffeine improves sprint performance in cyclists",
+            "Sleep deprivation impairs memory consolidation in healthy adults.",
+        )
+        self.assertLess(score, 0.3)
+
+    def test_verify_true_claim_with_mocked_embeddings(self):
+        from src.app.services import citation_verification_service as cvs
+
+        # Claim vector matches sentence 1 exactly, nothing else.
+        vectors = [[1.0, 0.0], [1.0, 0.0], [0.0, 1.0], [0.0, 1.0]]
+        with patch.object(cvs, "_embed_texts", return_value=vectors):
+            result = cvs.verify_claim("sleep deprivation impairs memory", self._SOURCE)
+        self.assertTrue(result["verified"])
+        self.assertEqual(result["method"], "embedding")
+        self.assertEqual(result["sentence_index"], 0)
+        self.assertIn("Sleep deprivation impairs memory consolidation", result["quote"])
+
+    def test_verify_false_claim_with_mocked_embeddings(self):
+        from src.app.services import citation_verification_service as cvs
+
+        vectors = [[1.0, 0.0], [0.0, 1.0], [0.0, 1.0], [0.0, 1.0]]
+        with patch.object(cvs, "_embed_texts", return_value=vectors):
+            result = cvs.verify_claim("caffeine improves sprint performance", self._SOURCE)
+        self.assertFalse(result["verified"])
+        self.assertIsNone(result["supporting_sentence"])
+        self.assertIsNone(result["sentence_index"])
+        self.assertIsNone(result["quote"])
+
+    def test_verify_falls_back_to_token_overlap_without_embeddings(self):
+        from src.app.services import citation_verification_service as cvs
+
+        with patch.object(cvs, "_embed_texts", return_value=None):
+            good = cvs.verify_claim("sleep deprivation impairs memory consolidation", self._SOURCE)
+            bad = cvs.verify_claim("caffeine improves sprint performance in cyclists", self._SOURCE)
+        self.assertTrue(good["verified"])
+        self.assertEqual(good["method"], "token_overlap")
+        self.assertFalse(bad["verified"])
+
+    def test_verify_marginal_embedding_score_is_not_verified(self):
+        from src.app.services import citation_verification_service as cvs
+
+        # Cosine 0.55 between claim and best sentence: below the 0.70
+        # threshold, so an unrelated claim must not verify.
+        import math
+
+        vectors = [[1.0, 0.0], [0.55, math.sqrt(1 - 0.55**2)], [0.0, 1.0], [0.0, 1.0]]
+        with patch.object(cvs, "_embed_texts", return_value=vectors):
+            result = cvs.verify_claim("caffeine improves sprint performance", self._SOURCE)
+        self.assertFalse(result["verified"])
+        self.assertAlmostEqual(result["score"], 0.55, places=2)
+
+    def test_verify_empty_inputs_are_not_verified(self):
+        from src.app.services import citation_verification_service as cvs
+
+        self.assertFalse(cvs.verify_claim("", self._SOURCE)["verified"])
+        self.assertFalse(cvs.verify_claim("sleep impairs memory", "")["verified"])
+
+
+class _FakeOpenAlexResponse:
+    def __init__(self, status_code, payload=None, text=""):
+        self.status_code = status_code
+        self._payload = payload or {}
+        self.text = text or str(self._payload)
+
+    def json(self):
+        return self._payload
+
+    def raise_for_status(self):
+        if self.status_code >= 400:
+            raise requests_error(self.status_code)
+
+
+def requests_error(status_code):
+    import requests as _requests
+
+    resp = _requests.Response()
+    resp.status_code = status_code
+    return _requests.exceptions.HTTPError(response=resp)
+
+
+class TestPaperBadges(unittest.TestCase):
+    """Move 2: badges come only from the live OpenAlex response."""
+
+    _WORK = {
+        "id": "https://openalex.org/W123",
+        "display_name": "A test paper",
+        "type": "article",
+        "is_retracted": False,
+        "cited_by_count": 12345,
+        "open_access": {"is_oa": True},
+        "primary_location": {"source": {"display_name": "Nature", "type": "journal"}},
+    }
+
+    def test_journal_article_badges(self):
+        from src.app.services import citation_verification_service as cvs
+
+        with patch.object(
+            cvs.requests, "get", return_value=_FakeOpenAlexResponse(200, self._WORK)
+        ):
+            badges = cvs.get_paper_badges("10.1038/nature12373")
+        self.assertEqual(badges["doi"], "10.1038/nature12373")
+        self.assertFalse(badges["retracted"])
+        self.assertTrue(badges["open_access"])
+        self.assertTrue(badges["peer_reviewed"])
+        self.assertFalse(badges["preprint"])
+        self.assertEqual(badges["citation_count"], 12345)
+        self.assertEqual(badges["openalex_url"], "https://openalex.org/W123")
+
+    def test_preprint_is_not_peer_reviewed(self):
+        from src.app.services import citation_verification_service as cvs
+
+        work = dict(self._WORK)
+        work["type"] = "posted-content"
+        work["primary_location"] = {"source": {"display_name": "arXiv", "type": "repository"}}
+        with patch.object(cvs.requests, "get", return_value=_FakeOpenAlexResponse(200, work)):
+            badges = cvs.get_paper_badges("10.48550/arXiv.1234.56789")
+        self.assertTrue(badges["preprint"])
+        self.assertFalse(badges["peer_reviewed"])
+
+    def test_retracted_flag_comes_from_openalex(self):
+        from src.app.services import citation_verification_service as cvs
+
+        work = dict(self._WORK)
+        work["is_retracted"] = True
+        with patch.object(cvs.requests, "get", return_value=_FakeOpenAlexResponse(200, work)):
+            badges = cvs.get_paper_badges("10.1234/retracted")
+        self.assertTrue(badges["retracted"])
+
+    def test_unknown_doi_returns_none(self):
+        from src.app.services import citation_verification_service as cvs
+
+        with patch.object(cvs.requests, "get", return_value=_FakeOpenAlexResponse(404, {})):
+            self.assertIsNone(cvs.get_paper_badges("10.9999/bogus-doi"))
+
+
+class _FakeLLM:
+    def __init__(self, content):
+        self._content = content
+
+    def invoke(self, prompt):
+        return SimpleNamespace(content=self._content)
+
+
+class TestDeepReview(unittest.TestCase):
+    """Move 1: screening, extraction and synthesis on mocked inputs."""
+
+    _PAPERS = [
+        {
+            "title": "Sleep and memory",
+            "abstract": "Sleep deprivation impairs memory consolidation in healthy adults. "
+            "We tested 40 participants after a night of sleep or wakefulness.",
+            "authors": ["A. Author"],
+            "year": 2023,
+            "venue": "Nature",
+            "doi": "https://doi.org/10.1234/SLEEP1",
+            "url": "https://example.com/1",
+            "citation_count": 50,
+            "source": "OpenAlex",
+        },
+        {
+            "title": "Sleep and memory (duplicate)",
+            "abstract": "Sleep deprivation impairs memory consolidation in healthy adults. "
+            "We tested 40 participants after a night of sleep or wakefulness.",
+            "authors": ["A. Author"],
+            "year": 2023,
+            "venue": "Nature",
+            "doi": "10.1234/sleep1",
+            "url": "https://example.com/2",
+            "citation_count": 10,
+            "source": "Semantic Scholar",
+        },
+        {
+            "title": "No abstract here",
+            "abstract": "",
+            "authors": [],
+            "year": 2022,
+            "venue": "",
+            "doi": "10.1234/noabstract",
+            "url": "",
+            "citation_count": 99,
+            "source": "OpenAlex",
+        },
+    ]
+
+    def test_search_falls_back_to_europe_pmc_when_primaries_empty(self):
+        from src.app.services import deep_review_service as drs
+
+        fallback_paper = {
+            "title": "Sleep and memory",
+            "abstract": "Sleep deprivation impairs memory consolidation in healthy adults. "
+            "We tested 40 participants after a night of sleep or wakefulness.",
+            "authors": ["A. Author"],
+            "year": 2023,
+            "venue": "Sleep",
+            "doi": "https://doi.org/10.1234/sleep1",
+            "url": "https://europepmc.org/article/MED/123",
+            "citationCount": 12,
+            "source": "Europe PMC",
+        }
+        with (
+            patch.object(drs, "fetch_openalex_papers", return_value=pd.DataFrame()),
+            patch.object(drs, "fetch_semantic_scholar_papers", return_value=[]),
+            patch.object(drs, "fetch_europe_pmc_papers", return_value=[fallback_paper]),
+            patch.object(drs, "fetch_crossref_papers", return_value=[]),
+        ):
+            papers = drs.search_papers(["sleep deprivation memory"])
+        self.assertEqual(len(papers), 1)
+        self.assertEqual(papers[0]["source"], "Europe PMC")
+        self.assertEqual(papers[0]["doi"], "10.1234/sleep1")
+
+    def test_screen_dedupes_by_doi_and_drops_no_abstract(self):
+        from src.app.services.deep_review_service import screen_papers
+
+        screened = screen_papers(self._PAPERS, max_papers=5)
+        self.assertEqual(len(screened), 1)
+        self.assertEqual(screened[0]["title"], "Sleep and memory")
+
+    def test_screen_caps_at_max_papers(self):
+        from src.app.services.deep_review_service import screen_papers
+
+        papers = [dict(p, doi=f"10.1234/p{i}", title=f"Paper {i}") for i, p in enumerate(self._PAPERS[:1] * 4)]
+        self.assertEqual(len(screen_papers(papers, max_papers=2)), 2)
+
+    def test_derive_subqueries_falls_back_when_llm_down(self):
+        from src.app.services import deep_review_service as drs
+
+        with patch.object(drs, "get_chat_model", side_effect=RuntimeError("ollama down")):
+            queries = drs.derive_subqueries("does sleep deprivation impair memory consolidation")
+        self.assertGreaterEqual(len(queries), 1)
+        self.assertIn("does sleep deprivation impair memory consolidation", queries)
+
+    def test_extract_finding_replaces_invented_quote(self):
+        from src.app.services.deep_review_service import extract_finding
+
+        fake = _FakeLLM(
+            '{"problem": "Does sleep loss hurt memory?", '
+            '"method": "40 participants tested after sleep or wakefulness.", '
+            '"key_result": "Sleep improved recall.", '
+            '"quote": "A sentence that appears nowhere in the abstract."}'
+        )
+        finding = extract_finding(fake, self._PAPERS[0], 1)
+        self.assertEqual(finding["problem"], "Does sleep loss hurt memory?")
+        # The invented quote must be replaced by a real abstract sentence.
+        self.assertIn(finding["quote"], self._PAPERS[0]["abstract"])
+
+    def test_synthesize_falls_back_to_template_when_llm_down(self):
+        from src.app.services import deep_review_service as drs
+
+        finding = {
+            "index": 1,
+            "title": "Sleep and memory",
+            "year": 2023,
+            "problem": "Does sleep loss hurt memory?",
+            "method": "40 participants tested.",
+            "key_result": "Sleep improved recall.",
+            "quote": "Sleep deprivation impairs memory consolidation in healthy adults.",
+        }
+        with patch.object(drs, "get_chat_model", side_effect=RuntimeError("ollama down")):
+            report = drs.synthesize_report("does sleep impair memory", [finding])
+        self.assertIn("[1] Sleep and memory", report)
+        self.assertIn("Sleep improved recall.", report)
+
+    def test_run_deep_review_with_mocked_search_and_llm(self):
+        from src.app.services import deep_review_service as drs
+
+        fake_json = (
+            '{"problem": "Does sleep loss hurt memory?", '
+            '"method": "40 participants tested after sleep or wakefulness.", '
+            '"key_result": "Sleep improved recall.", '
+            '"quote": "Sleep deprivation impairs memory consolidation in healthy adults."}'
+        )
+        with (
+            patch.object(drs, "derive_subqueries", return_value=["sleep deprivation memory"]),
+            patch.object(drs, "search_papers_with_status", return_value=(self._PAPERS, False)),
+            patch.object(drs, "get_chat_model", return_value=_FakeLLM(fake_json)),
+            patch.object(
+                drs, "synthesize_report",
+                return_value="Sleep improves memory consolidation [1].",
+            ),
+        ):
+            result = drs.run_deep_review("does sleep deprivation impair memory", max_papers=3)
+        self.assertEqual(result["status"], "success")
+        self.assertEqual(len(result["findings"]), 1)
+        self.assertIn("[1]", result["report"])
+        self.assertIn("check the cited papers yourself", result["verification_note"].lower())
+
+    def test_run_deep_review_no_results(self):
+        from src.app.services import deep_review_service as drs
+
+        with (
+            patch.object(drs, "derive_subqueries", return_value=["nothing matches this"]),
+            patch.object(drs, "search_papers_with_status", return_value=([], False)),
+        ):
+            result = drs.run_deep_review("zzz qqq nonexistent topic", max_papers=3)
+        self.assertEqual(result["status"], "no_results")
+        self.assertEqual(result["findings"], [])
+
+    def test_run_deep_review_search_unavailable(self):
+        from src.app.services import deep_review_service as drs
+
+        with (
+            patch.object(drs, "derive_subqueries", return_value=["sleep deprivation memory"]),
+            patch.object(drs, "search_papers_with_status", return_value=([], True)),
+        ):
+            result = drs.run_deep_review("does sleep deprivation impair memory", max_papers=3)
+        self.assertEqual(result["status"], "search_unavailable")
+        self.assertIn("rate-limiting", result["message"])
+        self.assertEqual(result["findings"], [])
+
+
+class TestNewRoutes(unittest.TestCase):
+    """The new routes are registered and call the new services."""
+
+    def test_routes_registered(self):
+        from src.app.main import app
+
+        # This FastAPI version mounts the API router as one included
+        # router, so app.routes does not list the API paths directly;
+        # the generated OpenAPI schema does.
+        paths = app.openapi()["paths"]
+        self.assertIn("/api/v1/review/deep", paths)
+        self.assertIn("/api/v1/citations/verify", paths)
+        self.assertIn("/api/v1/citations/papers/badges", paths)
+        self.assertIn("post", paths["/api/v1/review/deep"])
+        self.assertIn("post", paths["/api/v1/citations/verify"])
+        self.assertIn("get", paths["/api/v1/citations/papers/badges"])
+
+    def test_deep_review_route_calls_service(self):
+        from src.app.api.v1.routes.review import DeepReviewRequest, deep_review_endpoint
+
+        canned = {"status": "success", "question": "q", "report": "r [1]", "findings": []}
+        with patch(
+            "src.app.api.v1.routes.review.run_deep_review", return_value=dict(canned)
+        ):
+            result = asyncio.run(deep_review_endpoint(DeepReviewRequest(question="q")))
+        self.assertEqual(result["status"], "success")
+        self.assertIn("processing_time_seconds", result)
+
+    def test_deep_review_route_rejects_empty_question(self):
+        from src.app.api.v1.routes.review import DeepReviewRequest, deep_review_endpoint
+
+        with self.assertRaises(HTTPException) as ctx:
+            asyncio.run(deep_review_endpoint(DeepReviewRequest(question="  ")))
+        self.assertEqual(ctx.exception.status_code, 400)
+
+    def test_verify_route_returns_service_result(self):
+        from src.app.api.v1.routes.citations import VerifyRequest, verify_citation_endpoint
+
+        canned = {"verified": True, "score": 0.9, "supporting_sentence": "s", "sentence_index": 0, "quote": "s"}
+        with patch("src.app.api.v1.routes.citations.verify_claim", return_value=canned):
+            result = asyncio.run(
+                verify_citation_endpoint(VerifyRequest(claim="c", source_text="s text here"))
+            )
+        self.assertTrue(result["verified"])
+
+    def test_badges_route_not_found(self):
+        from src.app.api.v1.routes.citations import paper_badges_endpoint
+
+        with patch("src.app.api.v1.routes.citations.get_paper_badges", return_value=None):
+            result = asyncio.run(paper_badges_endpoint(doi="10.9999/bogus"))
+        self.assertEqual(result["status"], "not_found")
+        self.assertIsNone(result["badges"])
+
+    def test_badges_route_success(self):
+        from src.app.api.v1.routes.citations import paper_badges_endpoint
+
+        badges = {"doi": "10.1/x", "retracted": False, "open_access": True}
+        with patch("src.app.api.v1.routes.citations.get_paper_badges", return_value=badges):
+            result = asyncio.run(paper_badges_endpoint(doi="10.1/x"))
+        self.assertEqual(result["status"], "success")
+        self.assertTrue(result["badges"]["open_access"])
+
+    def test_deep_review_path_is_rate_limited(self):
+        rate_limit.reset_rate_limits()
+        req = _fake_request("/api/v1/review/deep", ip="10.0.0.9")
+        for _ in range(10):
+            allowed, _ = rate_limit.check_rate_limit(req)
+            self.assertTrue(allowed)
+        allowed, retry_after = rate_limit.check_rate_limit(req)
+        self.assertFalse(allowed)
+        self.assertGreaterEqual(retry_after, 1)
+
+
+class TestOpenAlexApiKey(unittest.TestCase):
+    """OpenAlex API key: sent when configured, keyless when unset,
+    and a 403 key_not_activated retries once without the key."""
+
+    _WORK = {
+        "id": "https://openalex.org/W123",
+        "display_name": "A test paper",
+        "type": "article",
+        "is_retracted": False,
+        "cited_by_count": 7,
+        "abstract_inverted_index": None,
+        "authorships": [],
+        "primary_location": {"source": {"display_name": "Nature", "type": "journal"}},
+        "open_access": {"is_oa": True, "oa_url": ""},
+        "ids": {},
+        "concepts": [],
+        "referenced_works": [],
+        "publication_year": 2024,
+    }
+
+    def _key_not_activated(self):
+        return _FakeOpenAlexResponse(
+            403,
+            {"error": "key_not_activated"},
+            text='{"error": "key_not_activated"}',
+        )
+
+    def test_headers_empty_when_key_unset(self):
+        from src.app.core.config import settings
+        from src.app.services import openalex_client
+
+        with patch.object(settings, "OPENALEX_API_KEY", ""):
+            self.assertEqual(openalex_client.get_openalex_headers(), {})
+
+    def test_headers_carry_bearer_token_when_key_set(self):
+        from src.app.core.config import settings
+        from src.app.services import openalex_client
+
+        with patch.object(settings, "OPENALEX_API_KEY", "test-key-123"):
+            self.assertEqual(
+                openalex_client.get_openalex_headers(),
+                {"Authorization": "Bearer test-key-123"},
+            )
+
+    def test_search_sends_key_when_configured(self):
+        from src.app.core.config import settings
+        from src.app.services import openalex_service
+
+        seen = {}
+
+        def fake_get(url, params=None, headers=None, timeout=None):
+            seen["headers"] = headers
+            return _FakeOpenAlexResponse(200, {"results": [self._WORK]})
+
+        with (
+            patch.object(settings, "OPENALEX_API_KEY", "test-key-123"),
+            patch.object(openalex_service.requests, "get", side_effect=fake_get),
+        ):
+            df = openalex_service.fetch_openalex_papers("sleep", limit=1)
+        self.assertEqual(seen["headers"], {"Authorization": "Bearer test-key-123"})
+        self.assertEqual(len(df), 1)
+        self.assertEqual(df.iloc[0]["title"], "A test paper")
+
+    def test_search_is_keyless_when_key_unset(self):
+        from src.app.core.config import settings
+        from src.app.services import openalex_service
+
+        seen = {}
+
+        def fake_get(url, params=None, headers=None, timeout=None):
+            seen["headers"] = headers
+            return _FakeOpenAlexResponse(200, {"results": [self._WORK]})
+
+        with (
+            patch.object(settings, "OPENALEX_API_KEY", ""),
+            patch.object(openalex_service.requests, "get", side_effect=fake_get),
+        ):
+            df = openalex_service.fetch_openalex_papers("sleep", limit=1)
+        self.assertEqual(seen["headers"], {})
+        self.assertEqual(len(df), 1)
+
+    def test_search_retries_keyless_once_on_key_not_activated(self):
+        from src.app.core.config import settings
+        from src.app.services import openalex_service
+
+        calls = []
+
+        def fake_get(url, params=None, headers=None, timeout=None):
+            calls.append(headers)
+            if len(calls) == 1:
+                return self._key_not_activated()
+            return _FakeOpenAlexResponse(200, {"results": [self._WORK]})
+
+        with (
+            patch.object(settings, "OPENALEX_API_KEY", "pending-key"),
+            patch.object(openalex_service.requests, "get", side_effect=fake_get),
+        ):
+            df = openalex_service.fetch_openalex_papers("sleep", limit=1)
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(calls[0], {"Authorization": "Bearer pending-key"})
+        self.assertEqual(calls[1], None)
+        self.assertEqual(len(df), 1)
+
+    def test_badges_retry_keyless_once_on_key_not_activated(self):
+        from src.app.core.config import settings
+        from src.app.services import citation_verification_service as cvs
+
+        work = dict(TestPaperBadges._WORK)
+        calls = []
+
+        def fake_get(url, headers=None, timeout=None):
+            calls.append(headers)
+            if len(calls) == 1:
+                return self._key_not_activated()
+            return _FakeOpenAlexResponse(200, work)
+
+        with (
+            patch.object(settings, "OPENALEX_API_KEY", "pending-key"),
+            patch.object(cvs.requests, "get", side_effect=fake_get),
+        ):
+            badges = cvs.get_paper_badges("10.1038/nature12373")
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(calls[0], {"Authorization": "Bearer pending-key"})
+        self.assertEqual(calls[1], None)
+        self.assertIsNotNone(badges)
+        self.assertEqual(badges["citation_count"], 12345)
+
+
 if __name__ == "__main__":
     unittest.main()

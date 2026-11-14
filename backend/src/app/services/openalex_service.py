@@ -4,8 +4,15 @@ from typing import List, Dict, Any
 import requests
 import pandas as pd
 
+from .openalex_client import get_openalex_headers, is_key_not_activated
+
 
 OPENALEX_BASE_URL = "https://api.openalex.org"
+
+# Last fetch error, if any (None when the most recent fetch succeeded).
+# Read by callers that must tell "the API failed" apart from "no
+# papers exist", e.g. the Deep Review pipeline.
+last_error: str | None = None
 
 
 def _flatten_abstract(abstract_inverted_index: Dict[str, List[int]] | None) -> str:
@@ -37,6 +44,9 @@ def fetch_openalex_papers(topic: str, limit: int = 100) -> pd.DataFrame:
     """
     logging.info(f"Fetching OpenAlex works for topic: {topic}, limit: {limit}")
 
+    global last_error
+    last_error = None
+
     per_page = 50  # OpenAlex max per page
     url = f"{OPENALEX_BASE_URL}/works"
     all_results: List[Dict[str, Any]] = []
@@ -55,7 +65,17 @@ def fetch_openalex_papers(topic: str, limit: int = 100) -> pd.DataFrame:
             }
             
             logging.info(f"Fetching page {page} of {pages_needed}...")
-            resp = requests.get(url, params=params, timeout=30)
+            headers = get_openalex_headers()
+            resp = requests.get(url, params=params, headers=headers, timeout=30)
+            if headers and is_key_not_activated(resp):
+                # Key requested but not activated yet: fall back to a
+                # keyless request so search keeps working until the
+                # activation link is clicked.
+                logging.warning(
+                    "OpenAlex API key not activated yet (key_not_activated); "
+                    "retrying without a key"
+                )
+                resp = requests.get(url, params=params, timeout=30)
             resp.raise_for_status()
             data = resp.json()
             results: List[Dict[str, Any]] = data.get("results", [])
@@ -182,9 +202,11 @@ def fetch_openalex_papers(topic: str, limit: int = 100) -> pd.DataFrame:
         return df
 
     except requests.exceptions.RequestException as e:
+        last_error = str(e)
         logging.error(f"OpenAlex API error: {str(e)}")
         return pd.DataFrame()
     except Exception as e:
+        last_error = str(e)
         logging.error(f"Unexpected error in fetch_openalex_papers: {str(e)}")
         return pd.DataFrame()
 

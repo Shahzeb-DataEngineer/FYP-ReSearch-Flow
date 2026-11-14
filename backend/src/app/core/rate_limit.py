@@ -13,6 +13,11 @@ Limits come from Settings:
 - POST /chat/ask: RATE_LIMIT_CHAT_PER_MINUTE per minute per IP.
 - POST /draft/generate: RATE_LIMIT_DRAFT_PER_HOUR per hour per IP
   (a draft takes minutes of CPU per call).
+- POST /review/deep and POST /citations/verify share the summarize
+  family bucket (RATE_LIMIT_SUMMARIZE_PER_MINUTE per minute per IP):
+  both run local LLM work, and the deep review is the heaviest of
+  them, so it gets no separate allowance. GET /citations/papers/badges
+  is a plain OpenAlex lookup and is not limited.
 
 The client IP is the first X-Forwarded-For entry when the request
 came through a proxy, otherwise the direct peer address. In
@@ -49,6 +54,8 @@ def _limits_for_path(path: str) -> Optional[tuple[str, int, int]]:
     if path.endswith("/chat/ask"):
         return ("chat", settings.RATE_LIMIT_CHAT_PER_MINUTE, 60)
     if path.endswith("/summarize") or path.endswith("/ask"):
+        return ("llm", settings.RATE_LIMIT_SUMMARIZE_PER_MINUTE, 60)
+    if path.endswith("/review/deep") or path.endswith("/citations/verify"):
         return ("llm", settings.RATE_LIMIT_SUMMARIZE_PER_MINUTE, 60)
     return None
 

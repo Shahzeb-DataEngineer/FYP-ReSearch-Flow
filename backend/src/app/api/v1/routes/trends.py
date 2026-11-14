@@ -5,6 +5,8 @@ from typing import List, Dict, Any
 import datetime
 from cachetools import TTLCache, cached
 
+from ....services.openalex_client import get_openalex_headers, is_key_not_activated
+
 router = APIRouter()
 
 # Cache for 12 hours (43200 seconds), max 5 items
@@ -34,7 +36,17 @@ def fetch_openalex_trends() -> List[Dict[str, Any]]:
             "per-page": 15
         }
         
-        response = requests.get(url, params=params, timeout=10)
+        headers = get_openalex_headers()
+        response = requests.get(url, params=params, headers=headers, timeout=10)
+        if headers and is_key_not_activated(response):
+            # Key requested but not activated yet: fall back to a
+            # keyless request so trends keep working until the
+            # activation link is clicked.
+            logging.warning(
+                "OpenAlex API key not activated yet (key_not_activated); "
+                "retrying without a key"
+            )
+            response = requests.get(url, params=params, timeout=10)
         response.raise_for_status()
         data = response.json()
         

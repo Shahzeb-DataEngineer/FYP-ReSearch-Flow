@@ -85,6 +85,7 @@ Backend (`backend/.env`, see `backend/.env.example`):
 | `OLLAMA_EMBED_MODEL` | no | Default `nomic-embed-text` |
 | `CORE_API_KEY` | no | Only if CORE search is wanted; without it CORE returns no results |
 | `SEMANTIC_SCHOLAR_API_KEY` | no | Optional; without it Semantic Scholar is rate-limited to 100 requests per 5 minutes |
+| `OPENALEX_API_KEY` | recommended | Free OpenAlex API key (one per email, requested at api.openalex.org). Without it, OpenAlex requests draw on the shared-IP daily budget, which is often used up. While the key is pending activation, requests with it get 403 `key_not_activated` and the backend retries once without the key, so the app keeps working. Click the activation link in the key-request email to activate it |
 | `RATE_LIMIT_SUMMARIZE_PER_MINUTE` | no | Default 10 per IP |
 | `RATE_LIMIT_CHAT_PER_MINUTE` | no | Default 20 per IP |
 | `RATE_LIMIT_DRAFT_PER_HOUR` | no | Default 2 per IP |
