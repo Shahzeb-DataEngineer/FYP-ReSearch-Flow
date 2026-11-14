@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { searchAPI, savedArticlesAPI, arxivAPI, coreAPI, pmcAPI, semanticScholarAPI, crossrefAPI, europePmcAPI, pubmedAPI, doajAPI, unpaywallAPI, draftAPI, chatAPI, checkAiReady, APIError } from '../services/api';
+import { searchAPI, savedArticlesAPI, arxivAPI, coreAPI, pmcAPI, semanticScholarAPI, crossrefAPI, europePmcAPI, pubmedAPI, doajAPI, unpaywallAPI, draftAPI, chatAPI, fulltextAPI, checkAiReady, APIError } from '../services/api';
 import {
   BookOpen, X, FileText, MessageSquare, Code, Download,
   ChevronDown, ChevronUp, Plus, Trash2, MoreVertical, ArrowUpDown, BarChart3, CheckSquare, Network,
@@ -440,6 +440,8 @@ const DetailPanel = ({ paper, onClose, summaryJobs, onStartSummarize, isSplitScr
   const [copiedToClipboard, setCopiedToClipboard] = useState(false);
   const [loadingSaved, setLoadingSaved] = useState(true);
   const [pdfContent, setPdfContent] = useState(null);
+  const [fulltext, setFulltext] = useState(null);
+  const [fulltextLoading, setFulltextLoading] = useState(false);
   // Summary state is now derived from the parent's summaryJobs map
   // so it persists even when the panel is closed/reopened
   const [showChat, setShowChat] = useState(false);
@@ -488,6 +490,8 @@ const DetailPanel = ({ paper, onClose, summaryJobs, onStartSummarize, isSplitScr
   useEffect(() => {
     if (!paper) return;
     setPdfContent(null);
+    setFulltext(null);
+    setFulltextLoading(false);
     setShowChat(false);
     setChatMessages([]);
     setChatInput('');
@@ -673,6 +677,36 @@ const DetailPanel = ({ paper, onClose, summaryJobs, onStartSummarize, isSplitScr
     }
   };
 
+  // Full text: resolve the legal open-access copy, download it and
+  // index it for chat. DOI from externalIds, paper.doi or the URL.
+  const fulltextDoi = doi || (paper?.doi ? String(paper.doi).replace(/^https?:\/\/doi\.org\//i, '') : null);
+  const handleFulltext = async () => {
+    if (!fulltextDoi || fulltextLoading) return;
+    setFulltextLoading(true);
+    try {
+      const resolved = await fulltextAPI.resolve(fulltextDoi);
+      if (!resolved.available) {
+        setFulltext(resolved);
+        showToast('No open-access full text found for this paper', 'info');
+        return;
+      }
+      setFulltext(resolved);
+      showToast('Open-access copy found. Downloading and indexing full text...', 'info');
+      const fetched = await fulltextAPI.fetchFulltext(fulltextDoi);
+      setFulltext(fetched);
+      if (fetched.chat_ready) {
+        showToast(`Full text indexed (${fetched.text_chars} chars). You can now ask about the full text.`, 'success');
+      } else {
+        showToast(fetched.message || 'Full text could not be indexed', 'error');
+      }
+    } catch (error) {
+      console.error('Full-text error:', error);
+      showToast(`Full text failed: ${error.message}`, 'error');
+    } finally {
+      setFulltextLoading(false);
+    }
+  };
+
   // Handle summarization — delegates to parent's background summarizer
   const handleSummarize = () => {
     // Check if PDF is available for extraction
@@ -839,6 +873,49 @@ const DetailPanel = ({ paper, onClose, summaryJobs, onStartSummarize, isSplitScr
             <Download className="w-4 h-4" />
             PDF
           </a>
+        )}
+        {fulltextDoi && (
+          <button
+            onClick={handleFulltext}
+            disabled={fulltextLoading}
+            className="px-4 py-2 bg-black hover:bg-gray-800 text-white rounded text-sm flex items-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            title="Find the legal open-access copy, download it and index the full text for chat"
+          >
+            {fulltextLoading ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white"></div>
+                <span>Fetching full text...</span>
+              </>
+            ) : (
+              <>
+                <BookOpen className="w-4 h-4" />
+                <span>Full text</span>
+              </>
+            )}
+          </button>
+        )}
+        {fulltext && (
+          <div className="w-full text-sm rounded border border-gray-200 bg-gray-50 px-3 py-2">
+            {fulltext.available ? (
+              <>
+                <span className="font-medium text-black">Open-access copy found via {fulltext.source}.</span>
+                {' '}
+                {fulltext.pdf_url && (
+                  <a href={fulltext.pdf_url} target="_blank" rel="noopener noreferrer" className="underline text-black">
+                    Open PDF
+                  </a>
+                )}
+                {fulltext.chat_ready && fulltext.text_chars > 0 && (
+                  <span className="text-gray-700"> Indexed {fulltext.text_chars.toLocaleString()} chars for chat.</span>
+                )}
+                {fulltext.status === 'download_failed' && (
+                  <span className="text-red-600"> {fulltext.message}</span>
+                )}
+              </>
+            ) : (
+              <span className="text-gray-700">{fulltext.message || 'No open-access full text found for this paper.'}</span>
+            )}
+          </div>
         )}
         <button
           onClick={handleCopyJSON}

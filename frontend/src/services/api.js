@@ -2117,4 +2117,89 @@ export const chatAPI = {
   }
 };
 
+// Open-access full-text bridge (Move 3)
+export const fulltextAPI = {
+  async resolve(doi) {
+    try {
+      const url = new URL(`${API_BASE_URL}/papers/fulltext`);
+      url.searchParams.append('doi', doi);
+      const response = await fetch(url.toString());
+      const data = await response.json();
+      if (!response.ok) {
+        throw new APIError(data.detail?.message || 'Failed to resolve full text', response.status, data.detail);
+      }
+      return data;
+    } catch (error) {
+      if (error instanceof APIError) throw error;
+      throw new APIError('Network error: Could not connect to server', 0, { originalError: error.message });
+    }
+  },
+
+  async fetchFulltext(doi) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 600000);
+      let response;
+      try {
+        response = await fetch(`${API_BASE_URL}/papers/fulltext`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ doi, download: true, index: true }),
+          signal: controller.signal,
+        });
+      } finally {
+        clearTimeout(timeoutId);
+      }
+      const data = await response.json();
+      if (!response.ok) {
+        throw new APIError(data.detail?.message || 'Failed to fetch full text', response.status, data.detail);
+      }
+      return data;
+    } catch (error) {
+      if (error instanceof APIError) throw error;
+      if (error?.name === 'AbortError') {
+        throw new APIError('Full-text fetch timed out. The PDF may be large; try again.', 0, { originalError: 'AbortError' });
+      }
+      throw new APIError('Network error: Could not connect to server', 0, { originalError: error.message });
+    }
+  },
+};
+
+// Free PRISMA systematic review (Move 4)
+export const prismaAPI = {
+  async runPrisma({ question, inclusionCriteria = [], exclusionCriteria = [], maxPapers = 5 }) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 900000);
+      let response;
+      try {
+        response = await fetch(`${API_BASE_URL}/review/prisma`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            question,
+            inclusion_criteria: inclusionCriteria,
+            exclusion_criteria: exclusionCriteria,
+            max_papers: maxPapers,
+          }),
+          signal: controller.signal,
+        });
+      } finally {
+        clearTimeout(timeoutId);
+      }
+      const data = await response.json();
+      if (!response.ok) {
+        throw new APIError(data.detail?.message || data.detail || 'Failed to run PRISMA review', response.status, data.detail);
+      }
+      return data;
+    } catch (error) {
+      if (error instanceof APIError) throw error;
+      if (error?.name === 'AbortError') {
+        throw new APIError('PRISMA review timed out. Screening takes minutes on CPU; try fewer papers.', 0, { originalError: 'AbortError' });
+      }
+      throw new APIError('Network error: Could not connect to server', 0, { originalError: error.message });
+    }
+  },
+};
+
 export { APIError };

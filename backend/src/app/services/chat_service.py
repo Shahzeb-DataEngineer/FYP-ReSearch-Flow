@@ -497,6 +497,36 @@ def ask_about_paper(
         raise ValueError(f"Chat error: {str(e)}")
 
 
+def index_paper_text(
+    paper_text: str,
+    paper_title: Optional[str] = None,
+    paper_source: Optional[str] = None,
+) -> str:
+    """Index full text into the FAISS + BM25 RAG store.
+
+    Used by the full-text bridge: after a paper PDF is extracted,
+    indexing it here makes RAG ask answer from the full text.
+    Returns the stable paper id (SHA256 of the text).
+    """
+    if not paper_text or len(paper_text.strip()) < 100:
+        raise ValueError("Paper text too short or empty for indexing")
+    _, llm = _get_models()
+    paper_id = _make_paper_id(paper_text)
+    _index_paper(
+        paper_text=paper_text,
+        paper_id=paper_id,
+        llm=llm,
+        paper_title=paper_title,
+        paper_source=paper_source,
+    )
+    return paper_id
+
+
+def is_paper_indexed(paper_text: str) -> bool:
+    """True when this exact text is already in the RAG store."""
+    return _make_paper_id(paper_text) in _indexed_paper_ids
+
+
 def ask_about_paper_with_session(
     session_id: str,
     question: str,
