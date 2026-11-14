@@ -10,7 +10,11 @@
 #   OLLAMA_BASE_URL=http://host.docker.internal:11435 docker compose up --build
 services:
   backend:
-    build: ./backend
+    # Build context is the repo root: backend/Dockerfile copies
+    # backend/requirements.txt and backend/src (see the Dockerfile).
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
     ports:
       - "8000:8000"
     environment:

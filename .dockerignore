@@ -1,0 +1,22 @@
+# Build context is the repo root for the backend image (see
+# backend/Dockerfile). Keep the context small and keep secrets and
+# local machine state out of every image.
+.git
+.github
+node_modules
+frontend/node_modules
+frontend/dist
+backend/data
+backend/__pycache__
+**/__pycache__
+*.pyc
+.env
+.env.*
+backend/.env
+frontend/.env
+frontend/.env.*
+venv
+.venv
+scratch
+docs/images
+*.log

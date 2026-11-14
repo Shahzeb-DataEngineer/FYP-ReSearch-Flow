@@ -2,6 +2,8 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, BookOpen, Users } from 'lucide-react';
 import SearchBar from '../components/SearchBar';
+import ModelPicker from '../components/ModelPicker';
+import UsagePanel from '../components/UsagePanel';
 
 const FeatureCard = ({ icon, title, description }) => {
   // Assigned to a const (not a destructured rename): ESLint's
@@ -76,6 +78,11 @@ export default function Home() {
                 title="Citation Networks"
                 description="Visualize connections between papers, authors, and research topics with interactive graphs."
               />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto mb-20">
+              <ModelPicker />
+              <UsagePanel />
             </div>
           </div>
         </main>

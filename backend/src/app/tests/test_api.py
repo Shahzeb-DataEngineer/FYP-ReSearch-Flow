@@ -61,6 +61,17 @@ from src.app.services.unpaywall_service import (
 from src.app.utils.dedupe import clean_and_deduplicate
 
 
+# Move 7: keep the usage meter and model selection out of the real
+# local state files. LLM-task tests (deep review, PRISMA, draft)
+# record usage through the real meter, so without this the test
+# suite would pollute backend/data/usage_log.jsonl.
+import os as _os
+import tempfile as _tempfile
+_TEST_TMP = _tempfile.TemporaryDirectory()
+_os.environ.setdefault("RESEARCH_FLOW_USAGE_LOG_PATH", _TEST_TMP.name + "/usage.jsonl")
+_os.environ.setdefault("RESEARCH_FLOW_MODEL_SELECTION_PATH", _TEST_TMP.name + "/selection.json")
+
+
 def _paper(title, **overrides):
     """Minimal paper row for clean_and_deduplicate."""
     row = {
@@ -2275,6 +2286,257 @@ class TestKnowledgeGraph(unittest.TestCase):
         library = self.kg.load_library(self.user)
         self.assertEqual(library["papers"][0]["abstract"], "Sleep helps memory")
         self.assertEqual(library["papers"][0]["notes"], "Read this.")
+
+
+class TestModelPickerAndUsage(unittest.TestCase):
+    """Move 7: transparent model picker + cost meter (mocked Ollama)."""
+
+    _TAGS = {
+        "models": [
+            {
+                "name": "qwen2.5:3b", "model": "qwen2.5:3b",
+                "size": 1929912432,
+                "details": {"parameter_size": "3.1B", "context_length": 32768,
+                            "family": "qwen2", "quantization_level": "Q4_K_M"},
+                "capabilities": ["completion", "tools"],
+            },
+            {
+                "name": "nomic-embed-text:latest", "model": "nomic-embed-text:latest",
+                "size": 274302450,
+                "details": {"parameter_size": "137M", "context_length": 2048,
+                            "family": "nomic-bert", "quantization_level": "F16"},
+                "capabilities": ["embedding"],
+            },
+        ]
+    }
+
+    def setUp(self):
+        import os, tempfile
+        self._tmp = tempfile.TemporaryDirectory()
+        os.environ["RESEARCH_FLOW_MODEL_SELECTION_PATH"] = self._tmp.name + "/selection.json"
+        os.environ["RESEARCH_FLOW_USAGE_LOG_PATH"] = self._tmp.name + "/usage.jsonl"
+
+    def tearDown(self):
+        # Restore the module-level temp paths: unittest runs classes
+        # alphabetically, so later classes (PRISMA, summaries) still
+        # record usage after this class, and must not hit the real log.
+        import os
+        os.environ["RESEARCH_FLOW_MODEL_SELECTION_PATH"] = _TEST_TMP.name + "/selection.json"
+        os.environ["RESEARCH_FLOW_USAGE_LOG_PATH"] = _TEST_TMP.name + "/usage.jsonl"
+        self._tmp.cleanup()
+
+    def _fake_tags(self):
+        class _Resp:
+            status_code = 200
+            def raise_for_status(self):
+                pass
+            def json(self):
+                return TestModelPickerAndUsage._TAGS
+        return _Resp()
+
+    def test_list_models_reports_size_context_and_active(self):
+        from src.app.services import model_registry as mr
+        with patch.object(mr.requests, "get", return_value=self._fake_tags()):
+            result = mr.list_models()
+        self.assertTrue(result["ollama_available"])
+        self.assertEqual(result["active_chat_model"], "qwen2.5:3b")
+        chat = [m for m in result["models"] if m["name"] == "qwen2.5:3b"][0]
+        self.assertEqual(chat["size_bytes"], 1929912432)
+        self.assertEqual(chat["context_length"], 32768)
+        self.assertTrue(chat["is_chat"])
+        self.assertIn("qwen2.5:3b", result["chat_models"])
+        self.assertIn("nomic-embed-text:latest", result["embedding_models"])
+
+    def test_list_models_empty_when_ollama_down(self):
+        from src.app.services import model_registry as mr
+        with patch.object(mr.requests, "get", side_effect=Exception("down")):
+            self.assertEqual(mr.list_installed_models(), [])
+
+    def test_select_unknown_model_rejected(self):
+        from src.app.services import model_registry as mr
+        with patch.object(mr.requests, "get", return_value=self._fake_tags()):
+            with self.assertRaises(ValueError):
+                mr.select_model("llama3:70b")
+
+    def test_select_embedding_model_as_chat_rejected(self):
+        from src.app.services import model_registry as mr
+        with patch.object(mr.requests, "get", return_value=self._fake_tags()):
+            with self.assertRaises(ValueError):
+                mr.select_model("nomic-embed-text:latest", kind="chat")
+
+    def test_select_persists_and_active_model_changes(self):
+        from src.app.services import model_registry as mr
+        from src.app.services import llm_provider
+        with patch.object(mr.requests, "get", return_value=self._fake_tags()):
+            out = mr.select_model("qwen2.5:3b", kind="chat")
+        self.assertEqual(out["active_model"], "qwen2.5:3b")
+        self.assertEqual(mr.get_active_chat_model(), "qwen2.5:3b")
+
+    def test_usage_record_and_summary_prices_avoided(self):
+        from src.app.services import usage_meter as um
+        um.record_usage("summarize", "qwen2.5:3b", prompt_tokens=4000,
+                        generated_tokens=1000, seconds=12.5)
+        um.record_usage("draft", "qwen2.5:3b", prompt_tokens=8000,
+                        generated_tokens=2000, seconds=120.0)
+        summary = um.get_usage_summary()
+        self.assertEqual(summary["total_calls"], 2)
+        self.assertEqual(summary["total_tokens"], 15000)
+        self.assertEqual(summary["total_spent_usd"], 0.0)
+        # (4000+8000)/1e6*0.15 + (1000+2000)/1e6*0.60 = 0.0018 + 0.0018
+        self.assertAlmostEqual(summary["cloud_price_avoided_usd"], 0.0036, places=6)
+        self.assertEqual(summary["cloud_rate"]["model"], "GPT-4o-mini")
+        by_task = {b["task"]: b for b in summary["by_task"]}
+        self.assertEqual(by_task["summarize"]["calls"], 1)
+        self.assertEqual(by_task["draft"]["seconds"], 120.0)
+
+    def test_usage_empty_log_is_zero(self):
+        from src.app.services import usage_meter as um
+        summary = um.get_usage_summary()
+        self.assertEqual(summary["total_calls"], 0)
+        self.assertEqual(summary["total_spent_usd"], 0.0)
+        self.assertEqual(summary["cloud_price_avoided_usd"], 0.0)
+
+    def test_estimate_tokens_is_chars_over_four(self):
+        from src.app.services.usage_meter import estimate_tokens
+        self.assertEqual(estimate_tokens("x" * 400), 100)
+        self.assertEqual(estimate_tokens(""), 0)
+
+    def test_models_and_usage_routes_registered(self):
+        from src.app.main import app
+        paths = set(app.openapi()["paths"])
+        self.assertIn("/api/v1/models", paths)
+        self.assertIn("/api/v1/models/select", paths)
+        self.assertIn("/api/v1/usage", paths)
+
+
+class TestHonestDrafting(unittest.TestCase):
+    """Move 8: drafts from the extraction table, support flags, pre-export check."""
+
+    _PAPERS = [
+        {
+            "title": "Sleep improves memory consolidation",
+            "authors": ["A. Author"], "year": 2023,
+            "doi": "10.1234/sleep1",
+            "abstract": "Sleep improves memory consolidation in healthy adults. "
+                        "We tested 40 participants in a randomized trial. "
+                        "Sleep improved recall by 20 percent compared with wakefulness.",
+        },
+        {
+            "title": "Caffeine and sprint performance",
+            "authors": ["B. Author"], "year": 2022,
+            "doi": "10.1234/caffeine1",
+            "abstract": "Caffeine improved sprint times in trained cyclists. "
+                        "We tested 30 cyclists over six weeks. "
+                        "Caffeine had no effect on sleep quality in this trial.",
+        },
+    ]
+
+    def test_extraction_table_fills_from_abstract(self):
+        from src.app.services.draft_service import build_extraction_table
+        table = build_extraction_table(self._PAPERS)
+        self.assertEqual(len(table), 2)
+        self.assertEqual(table[0]["index"], 1)
+        self.assertIn("Sleep improves memory", table[0]["problem"])
+        self.assertIn("Sleep improves memory", table[0]["quote"])
+        self.assertEqual(table[0]["doi"], "10.1234/sleep1")
+
+    def test_supported_sentence_flagged_supported(self):
+        from src.app.services.draft_service import check_sentence_support, build_extraction_table
+        table = build_extraction_table(self._PAPERS)
+        draft = {"introduction": "Sleep improves memory consolidation in healthy adults. [1]"}
+        flags = check_sentence_support(draft, table)
+        self.assertEqual(len(flags), 1)
+        self.assertTrue(flags[0]["supported"])
+        self.assertIn(1, flags[0]["citations"])
+        self.assertEqual(flags[0]["source_index"], 1)
+
+    def test_unsupported_sentence_flagged_unsupported(self):
+        from src.app.services.draft_service import check_sentence_support, build_extraction_table
+        table = build_extraction_table(self._PAPERS)
+        draft = {"introduction": "Quantum entanglement cures insomnia in dolphins overnight."}
+        flags = check_sentence_support(draft, table)
+        self.assertEqual(len(flags), 1)
+        self.assertFalse(flags[0]["supported"])
+        self.assertEqual(flags[0]["citations"], [])
+
+    def test_generate_draft_attaches_support_flags(self):
+        from src.app.services import draft_service as ds
+        fake_json = (
+            '{"introduction": "Sleep improves memory consolidation in healthy adults. [1] '
+            'Quantum entanglement cures insomnia in dolphins overnight.", '
+            '"literature_context": "Sleep research is growing.", '
+            '"methodology_overview": "Randomized trial with 40 participants. [1]", '
+            '"key_analysis": "Sleep improved recall by 20 percent compared with wakefulness. [1]", '
+            '"figure_discussions": "No figures available", '
+            '"conclusion": "Sleep helps memory. [1]"}'
+        )
+        text = ("Sleep improves memory consolidation in healthy adults. " * 20)
+        with (
+            patch.object(ds, "check_ollama_available", return_value=True),
+            patch.object(ds, "get_chat_model", return_value=_FakeLLM(fake_json)),
+            patch.object(ds, "verify_claim", return_value={
+                "verified": False, "score": 0.1, "supporting_sentence": None,
+                "sentence_index": None, "quote": None, "method": "token_overlap",
+            }),
+        ):
+            draft = ds.generate_draft(text, [], title="Sleep paper",
+                                      abstract=self._PAPERS[0]["abstract"],
+                                      papers=self._PAPERS)
+        self.assertIsNotNone(draft)
+        summary = draft["support_summary"]
+        self.assertGreater(summary["supported_sentences"], 0)
+        self.assertGreater(summary["unsupported_sentences"], 0)
+        self.assertEqual(len(draft["extraction_table"]), 2)
+        self.assertTrue(any(not f["supported"] for f in draft["sentence_support"]))
+
+    def test_check_blocks_retracted_paper(self):
+        from src.app.services import draft_service as ds
+        def _badges(doi):
+            return {"doi": doi, "retracted": doi == "10.1234/sleep1",
+                    "open_access": True, "peer_reviewed": True, "preprint": False}
+        with patch.object(ds, "get_paper_badges", side_effect=_badges):
+            result = ds.check_draft_references(self._PAPERS)
+        self.assertFalse(result["export_allowed"])
+        self.assertTrue(result["blocked"])
+        self.assertEqual(len(result["retracted"]), 1)
+        self.assertIn("retracted", result["block_reason"].lower())
+
+    def test_check_allows_clean_papers(self):
+        from src.app.services import draft_service as ds
+        with patch.object(ds, "get_paper_badges", return_value={
+            "doi": "10.1234/sleep1", "retracted": False, "open_access": True,
+            "peer_reviewed": True, "preprint": False,
+        }):
+            result = ds.check_draft_references(self._PAPERS)
+        self.assertTrue(result["export_allowed"])
+        self.assertFalse(result["blocked"])
+        self.assertEqual(result["papers_checked"], 2)
+
+    def test_check_flags_possible_contradiction(self):
+        from src.app.services import draft_service as ds
+        papers = [
+            {"title": "Sleep and memory trial", "doi": "10.1234/a",
+             "abstract": "Sleep improves memory consolidation in adults. "
+                         "Sleep improves recall in a randomized trial of memory.",
+             "key_result": "Sleep improves memory consolidation in adults."},
+            {"title": "Sleep and memory replication", "doi": "10.1234/b",
+             "abstract": "Sleep had no effect on memory consolidation in adults. "
+                         "Sleep had no effect on recall in a randomized trial of memory.",
+             "key_result": "Sleep had no effect on memory consolidation in adults."},
+        ]
+        with patch.object(ds, "get_paper_badges", return_value={
+            "doi": "10.1234/a", "retracted": False, "open_access": True,
+            "peer_reviewed": True, "preprint": False,
+        }):
+            result = ds.check_draft_references(papers)
+        self.assertTrue(result["export_allowed"])
+        self.assertEqual(len(result["contradictions"]), 1)
+        self.assertIn("possible contradiction", result["contradictions"][0].lower())
+
+    def test_draft_check_route_registered_and_rejects_empty(self):
+        from src.app.main import app
+        paths = set(app.openapi()["paths"])
+        self.assertIn("/api/v1/draft/check", paths)
 
 
 if __name__ == "__main__":

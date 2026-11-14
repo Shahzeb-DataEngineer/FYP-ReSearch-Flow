@@ -19,6 +19,7 @@ from src.app.api.v1.routes.citations import router as citations_router
 from src.app.api.v1.routes.fulltext import router as fulltext_router
 from src.app.api.v1.routes.gap_finder import router as gap_finder_router
 from src.app.api.v1.routes.library import router as library_router
+from src.app.api.v1.routes.models import models_router, usage_router
 
 api_router = APIRouter()
 
@@ -42,3 +43,5 @@ api_router.include_router(citations_router, prefix="/citations", tags=["Citation
 api_router.include_router(fulltext_router, prefix="/papers", tags=["Full Text"])
 api_router.include_router(gap_finder_router, prefix="/gap-finder", tags=["Citation Graph and Gap Finder"])
 api_router.include_router(library_router, prefix="/library", tags=["Private Knowledge Graph"])
+api_router.include_router(models_router, prefix="/models", tags=["Model Picker"])
+api_router.include_router(usage_router, prefix="/usage", tags=["Cost Meter"])

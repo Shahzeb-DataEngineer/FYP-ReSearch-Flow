@@ -452,6 +452,11 @@ const DetailPanel = ({ paper, onClose, summaryJobs, onStartSummarize, isSplitScr
 
   const [draft, setDraft] = useState(null);
   const [draftFigures, setDraftFigures] = useState([]);
+  const [draftSupport, setDraftSupport] = useState([]);
+  const [draftSupportSummary, setDraftSupportSummary] = useState(null);
+  const [draftExtraction, setDraftExtraction] = useState([]);
+  const [draftCheck, setDraftCheck] = useState(null);
+  const [draftChecking, setDraftChecking] = useState(false);
   const [draftGenerating, setDraftGenerating] = useState(false);
   const [draftProgress, setDraftProgress] = useState('');
   const [draftCollapsed, setDraftCollapsed] = useState({});
@@ -499,6 +504,10 @@ const DetailPanel = ({ paper, onClose, summaryJobs, onStartSummarize, isSplitScr
 
     setDraft(null);
     setDraftFigures([]);
+    setDraftSupport([]);
+    setDraftSupportSummary(null);
+    setDraftExtraction([]);
+    setDraftCheck(null);
     setDraftGenerating(false);
     setDraftProgress('');
     setDraftCollapsed({});
@@ -1060,10 +1069,21 @@ const DetailPanel = ({ paper, onClose, summaryJobs, onStartSummarize, isSplitScr
                       title: paper.title || '',
                       authors: authorsStr,
                       abstract: abstract || '',
+                      papers: [{
+                        title: paper.title || '',
+                        authors: paper.authors || [],
+                        year: paper.year,
+                        doi: paper.doi || (paper.externalIds && (paper.externalIds.DOI || paper.externalIds.doi)) || '',
+                        abstract: abstract || '',
+                      }],
                     });
                     if (response.status === 'success' && response.draft) {
                       setDraft(response.draft);
                       setDraftFigures(response.figure_analyses || []);
+                      setDraftSupport(response.sentence_support || response.draft.sentence_support || []);
+                      setDraftSupportSummary(response.support_summary || response.draft.support_summary || null);
+                      setDraftExtraction(response.extraction_table || response.draft.extraction_table || []);
+                      setDraftCheck(null);
                       showToast(
                         `Draft generated! ${response.metadata?.figures_analyzed || 0} figures analyzed in ${response.metadata?.processing_time_seconds || '?'}s`,
                         'success'
@@ -1415,6 +1435,10 @@ const DetailPanel = ({ paper, onClose, summaryJobs, onStartSummarize, isSplitScr
                 </button>
                 <button
                   onClick={() => {
+                    if (draftCheck && draftCheck.blocked) {
+                      showToast('Export blocked: a cited paper is retracted. Remove it before export.', 'error');
+                      return;
+                    }
                     const sections = [
                       draft.introduction && `INTRODUCTION\n\n${draft.introduction}`,
                       draft.literature_context && `LITERATURE CONTEXT\n\n${draft.literature_context}`,
@@ -1444,6 +1468,53 @@ const DetailPanel = ({ paper, onClose, summaryJobs, onStartSummarize, isSplitScr
 
           {!draftMinimized && (
             <>
+              {draftSupportSummary && (
+                <div className="bg-white border border-gray-200 rounded-lg p-3 text-sm">
+                  <div className="flex flex-wrap items-center gap-2 justify-between">
+                    <span className="font-semibold text-gray-800">
+                      Claim check: {draftSupportSummary.supported_sentences} of {draftSupportSummary.total_sentences} sentences supported by the sources
+                      {draftSupportSummary.unsupported_sentences > 0 && (
+                        <span className="text-red-700">, {draftSupportSummary.unsupported_sentences} unsupported (highlighted below)</span>
+                      )}
+                    </span>
+                    <button
+                      onClick={async () => {
+                        setDraftChecking(true);
+                        try {
+                          const result = await draftAPI.checkDraft(draftExtraction);
+                          setDraftCheck(result);
+                          showToast(result.export_allowed ? 'Pre-export check passed' : 'Export blocked: a cited paper is retracted', result.export_allowed ? 'success' : 'error');
+                        } catch (e) {
+                          showToast(`Draft check failed: ${e.message || 'unknown error'}`, 'error');
+                        } finally {
+                          setDraftChecking(false);
+                        }
+                      }}
+                      disabled={draftChecking || draftExtraction.length === 0}
+                      className="px-3 py-1.5 rounded text-xs bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-60"
+                    >
+                      {draftChecking ? 'Checking...' : 'Check before export'}
+                    </button>
+                  </div>
+                  {draftCheck && (
+                    <div className="mt-2">
+                      {draftCheck.blocked ? (
+                        <p className="text-red-700 font-medium">Export blocked: {draftCheck.block_reason}</p>
+                      ) : (
+                        <p className="text-emerald-700">No retracted papers among the cited sources. Export is allowed.</p>
+                      )}
+                      {draftCheck.warnings && draftCheck.warnings.map((w, i) => (
+                        <p key={i} className="text-amber-700 text-xs mt-1">{w}</p>
+                      ))}
+                    </div>
+                  )}
+                  {draftExtraction.length > 0 && (
+                    <p className="text-xs text-gray-500 mt-2">
+                      Built from {draftExtraction.length} source{draftExtraction.length > 1 ? 's' : ''}: {draftExtraction.map((row) => `[${row.index}] ${row.title}`).join('; ')}
+                    </p>
+                  )}
+                </div>
+              )}
               <div className="space-y-3 mt-2">
                 {[
                   { key: 'introduction', label: 'Introduction', icon: '📖' },
@@ -1470,7 +1541,19 @@ const DetailPanel = ({ paper, onClose, summaryJobs, onStartSummarize, isSplitScr
                       </button>
                       {!isCollapsed && (
                         <div className="px-4 pb-4">
-                          <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-line">{content}</p>
+                          <div className="text-sm text-gray-700 leading-relaxed whitespace-pre-line">
+                            {content.split(/(?<=[.!?])\s+/).map((sentence, i) => {
+                              const flag = draftSupport.find((f) => f.section === key && f.sentence === sentence);
+                              if (flag && !flag.supported) {
+                                return (
+                                  <span key={i} className="bg-red-100 text-red-800 px-0.5 rounded" title="Unsupported: no source sentence backs this claim">
+                                    {sentence}{' '}
+                                  </span>
+                                );
+                              }
+                              return <span key={i}>{sentence}{' '}</span>;
+                            })}
+                          </div>
                         </div>
                       )}
                     </div>
@@ -1508,7 +1591,7 @@ const DetailPanel = ({ paper, onClose, summaryJobs, onStartSummarize, isSplitScr
               </div>
 
               <div className="mt-3 text-center">
-                <p className="text-[10px] text-emerald-400">Generated by GPT-4o with Vision — review and edit before use</p>
+                <p className="text-[10px] text-emerald-400">Generated locally with Ollama - review and edit before use</p>
               </div>
             </>
           )}

@@ -27,6 +27,7 @@ Pipeline:
 import json
 import logging
 import re
+import time
 from typing import Any, Dict, List, Optional
 
 from .deep_review_service import (
@@ -37,6 +38,8 @@ from .deep_review_service import (
     search_papers,
 )
 from .llm_provider import get_chat_model
+from .model_registry import get_active_chat_model
+from .usage_meter import record_llm_call
 
 logger = logging.getLogger(__name__)
 
@@ -214,6 +217,7 @@ def run_prisma_review(
     max_papers: int = 5,
 ) -> Dict[str, Any]:
     """Run the full PRISMA review pipeline for one research question."""
+    _started = time.time()
     inclusion = inclusion_criteria or []
     exclusion = exclusion_criteria or []
     subqueries = derive_subqueries(question)
@@ -280,6 +284,9 @@ def run_prisma_review(
         f"({screened - len(disagreements)} of {screened} papers). "
         + VERIFICATION_NOTE
     )
+    record_llm_call("prisma", get_active_chat_model(), question,
+                    "\n".join(r.get("final_reason", "") for r in rows),
+                    time.time() - _started)
     return {
         "status": "success" if screened else "no_results",
         "question": question,
