@@ -2202,4 +2202,135 @@ export const prismaAPI = {
   },
 };
 
+// Citation graph + gap finder (Move 5)
+export const gapFinderAPI = {
+  async runGraph({ doi = '', topic = '', maxNodes = 60 }) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 900000);
+      let response;
+      try {
+        response = await fetch(`${API_BASE_URL}/gap-finder/graph`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ doi, topic, max_nodes: maxNodes }),
+          signal: controller.signal,
+        });
+      } finally {
+        clearTimeout(timeoutId);
+      }
+      const data = await response.json();
+      if (!response.ok) {
+        throw new APIError(data.detail?.message || data.detail || 'Gap finder failed', response.status, data.detail);
+      }
+      return data;
+    } catch (error) {
+      if (error instanceof APIError) throw error;
+      if (error?.name === 'AbortError') {
+        throw new APIError('Gap finder timed out. Try fewer nodes.', 0, { originalError: 'AbortError' });
+      }
+      throw new APIError('Network error: Could not connect to server', 0, { originalError: error.message });
+    }
+  },
+};
+
+// Private knowledge graph / My Library (Move 6)
+export const libraryAPI = {
+  async indexPapers({ userId = 'local', papers = [], topics = [] }) {
+    const response = await fetch(`${API_BASE_URL}/library/index`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: userId, papers, topics }),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new APIError(data.detail?.message || data.detail || 'Library indexing failed', response.status, data.detail);
+    }
+    return data;
+  },
+
+  async syncSaved(userId = 'local') {
+    const response = await fetch(`${API_BASE_URL}/library/sync-saved`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: userId }),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new APIError(data.detail?.message || data.detail || 'Saved sync failed', response.status, data.detail);
+    }
+    return data;
+  },
+
+  async getPapers(userId = 'local') {
+    const response = await fetch(`${API_BASE_URL}/library/papers?user_id=${encodeURIComponent(userId)}`);
+    const data = await response.json();
+    if (!response.ok) {
+      throw new APIError(data.detail?.message || data.detail || 'Failed to load library', response.status, data.detail);
+    }
+    return data;
+  },
+
+  async getGraph(userId = 'local') {
+    const response = await fetch(`${API_BASE_URL}/library/graph?user_id=${encodeURIComponent(userId)}`);
+    const data = await response.json();
+    if (!response.ok) {
+      throw new APIError(data.detail?.message || data.detail || 'Failed to load knowledge graph', response.status, data.detail);
+    }
+    return data;
+  },
+
+  async ask({ userId = 'local', question }) {
+    const response = await fetch(`${API_BASE_URL}/library/ask`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: userId, question }),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new APIError(data.detail?.message || data.detail || 'Library ask failed', response.status, data.detail);
+    }
+    return data;
+  },
+
+  async importZotero({ userId = 'local', limit = 50 }) {
+    const response = await fetch(`${API_BASE_URL}/library/zotero/import`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: userId, limit }),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new APIError(data.detail?.message || data.detail || 'Zotero import failed', response.status, data.detail);
+    }
+    return data;
+  },
+
+  exportUrl(userId = 'local', format = 'bibtex') {
+    return `${API_BASE_URL}/library/zotero/export?user_id=${encodeURIComponent(userId)}&format=${format}`;
+  },
+
+  async checkAlerts({ userId = 'local', topics = [] }) {
+    const response = await fetch(`${API_BASE_URL}/library/alerts/check`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: userId, topics }),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new APIError(data.detail?.message || data.detail || 'Alerts check failed', response.status, data.detail);
+    }
+    return data;
+  },
+
+  async getAlerts(userId = 'local') {
+    const response = await fetch(`${API_BASE_URL}/library/alerts?user_id=${encodeURIComponent(userId)}`);
+    const data = await response.json();
+    if (!response.ok) {
+      throw new APIError(data.detail?.message || data.detail || 'Failed to load alerts', response.status, data.detail);
+    }
+    return data;
+  },
+};
+
 export { APIError };

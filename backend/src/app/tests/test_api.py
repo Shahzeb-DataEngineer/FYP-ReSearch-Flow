@@ -1781,5 +1781,501 @@ class TestPrismaReview(unittest.TestCase):
         self.assertFalse(allowed)
 
 
+class TestGapFinder(unittest.TestCase):
+    """Move 5: timeline, under-cited clusters, unanswered questions."""
+
+    def _nodes(self):
+        return [
+            {"id": "W1", "title": "Paper One", "year": 2024, "citationCount": 100},
+            {"id": "W2", "title": "Paper Two", "year": 2024, "citationCount": 10},
+            {"id": "W3", "title": "Paper Three", "year": 2023, "citationCount": 5},
+            {"id": "W4", "title": "Paper Four", "year": 2023, "citationCount": 40},
+            {"id": "W5", "title": "Paper Five", "year": 2022, "citationCount": 2},
+        ]
+
+    def test_timeline_groups_by_year_newest_first(self):
+        from src.app.services import gap_finder_service as gf
+
+        rows = gf.build_timeline(self._nodes())
+        self.assertEqual([r["year"] for r in rows], [2024, 2023, 2022])
+        row_2024 = rows[0]
+        self.assertEqual(row_2024["paper_count"], 2)
+        self.assertEqual(row_2024["total_citations"], 110)
+        self.assertEqual(row_2024["top_paper"], "Paper One")
+
+    def test_under_cited_clusters_need_busy_recent_year(self):
+        from src.app.services import gap_finder_service as gf
+
+        papers = [
+            {"title": f"Recent {i}", "year": 2026, "citation_count": c, "doi": ""}
+            for i, c in enumerate([0, 1, 2, 50, 60])
+        ]
+        papers.append({"title": "Old", "year": 2010, "citation_count": 0, "doi": ""})
+        clusters = gf.find_under_cited_clusters(papers)
+        self.assertEqual(len(clusters), 1)
+        self.assertEqual(clusters[0]["year"], 2026)
+        self.assertEqual(clusters[0]["median_citations"], 2)
+        self.assertEqual(len(clusters[0]["under_cited"]), 2)
+
+    def test_under_cited_clusters_skip_quiet_years(self):
+        from src.app.services import gap_finder_service as gf
+
+        papers = [
+            {"title": "Only one", "year": 2026, "citation_count": 0, "doi": ""},
+            {"title": "Only two", "year": 2026, "citation_count": 0, "doi": ""},
+        ]
+        self.assertEqual(gf.find_under_cited_clusters(papers), [])
+
+    def test_unanswered_questions_fall_back_without_llm(self):
+        from src.app.services import gap_finder_service as gf
+
+        papers = [
+            {
+                "title": "Sleep and memory",
+                "abstract": "We studied sleep and memory consolidation in adults.",
+                "doi": "10.1234/sleep.1",
+            }
+        ]
+        with patch.object(gf, "check_ollama_available", return_value=False):
+            result = gf.detect_unanswered_questions(papers, topic="sleep")
+        self.assertFalse(result["llm_used"])
+        self.assertGreaterEqual(len(result["questions"]), 2)
+        self.assertEqual(
+            result["questions"][0]["checked_papers"][0]["doi"], "10.1234/sleep.1"
+        )
+
+    def test_unanswered_questions_empty_without_abstracts(self):
+        from src.app.services import gap_finder_service as gf
+
+        result = gf.detect_unanswered_questions([{"title": "No abstract", "abstract": ""}])
+        self.assertEqual(result["questions"], [])
+        self.assertEqual(result["reason"], "no_abstracts")
+
+    def test_run_gap_finder_topic_path_mocked(self):
+        from src.app.services import gap_finder_service as gf
+
+        papers = [
+            {
+                "title": "Sleep paper",
+                "abstract": "Sleep improves memory consolidation in adults over weeks.",
+                "authors": ["A. Author"],
+                "year": 2025,
+                "venue": "Journal",
+                "doi": "10.1234/sleep.1",
+                "url": "",
+                "citationCount": 3,
+                "source": "OpenAlex",
+            },
+            {
+                "title": "Memory paper",
+                "abstract": "Memory replay during sleep was measured in a small cohort.",
+                "authors": ["B. Author"],
+                "year": 2025,
+                "venue": "Journal",
+                "doi": "10.1234/sleep.2",
+                "url": "",
+                "citationCount": 20,
+                "source": "OpenAlex",
+            },
+        ]
+        graph = {
+            "nodes": [
+                {"id": "W1", "title": "Sleep paper", "year": 2025, "citationCount": 3, "authors": ["A. Author"]},
+                {"id": "W2", "title": "Memory paper", "year": 2025, "citationCount": 20, "authors": ["B. Author"]},
+            ],
+            "edges": [{"source": "W2", "target": "W1", "type": "cites"}],
+            "stats": {"totalNodes": 2, "totalEdges": 1},
+        }
+        with (
+            patch.object(gf, "search_papers", return_value=papers),
+            patch.object(
+                gf.net, "build_citation_network_from_papers", return_value=graph
+            ),
+            patch.object(gf, "check_ollama_available", return_value=False),
+        ):
+            result = gf.run_gap_finder(topic="sleep and memory")
+        self.assertEqual(result["status"], "success")
+        self.assertEqual(len(result["graph"]["nodes"]), 2)
+        self.assertEqual(result["timeline"][0]["year"], 2025)
+        self.assertGreaterEqual(len(result["unanswered_questions"]["questions"]), 1)
+
+    def test_run_gap_finder_unknown_doi_reports_not_found(self):
+        from src.app.services import gap_finder_service as gf
+
+        with patch.object(gf.net, "fetch_work_details", return_value=None):
+            result = gf.run_gap_finder(doi="10.9999/does.not.exist")
+        self.assertEqual(result["status"], "not_found")
+        self.assertEqual(result["graph"]["nodes"], [])
+
+    def test_normalize_paper_preserves_paper_id(self):
+        from src.app.services.deep_review_service import _normalize_paper
+
+        paper = _normalize_paper(
+            {
+                "paperId": "https://openalex.org/W123",
+                "title": "A paper",
+                "abstract": "An abstract.",
+                "authors": [{"name": "A. Author"}],
+                "year": 2024,
+                "citationCount": 5,
+            }
+        )
+        # The gap finder builds its citation graph from these ids;
+        # dropping them used to produce an empty graph for topic mode.
+        self.assertEqual(paper["paperId"], "https://openalex.org/W123")
+        self.assertEqual(paper["id"], "https://openalex.org/W123")
+
+    def test_na_abstract_is_not_treated_as_real(self):
+        from src.app.services import gap_finder_service as gf
+
+        # OpenAlex flattens a missing abstract to the literal "N/A";
+        # the gap finder must not let the LLM "read" that as a paper.
+        result = gf.detect_unanswered_questions(
+            [{"title": "No abstract", "abstract": "N/A"}]
+        )
+        self.assertEqual(result["questions"], [])
+        self.assertEqual(result["reason"], "no_abstracts")
+
+    def test_enrich_abstracts_fills_from_semantic_scholar_batch(self):
+        from src.app.services import gap_finder_service as gf
+
+        class _FakeResp:
+            def raise_for_status(self):
+                return None
+
+            def json(self):
+                return [{"abstract": "A real abstract about sleep and memory."}]
+
+        papers = [{"title": "T", "abstract": "N/A", "doi": "10.1234/x.1"}]
+        with patch("requests.post", return_value=_FakeResp()):
+            gf._enrich_abstracts(papers)
+        self.assertEqual(papers[0]["abstract"], "A real abstract about sleep and memory.")
+
+    def test_s2_abstract_enriches_seed_without_openalex_abstract(self):
+        from src.app.services import gap_finder_service as gf
+
+        class _FakeResp:
+            def raise_for_status(self):
+                return None
+
+            def json(self):
+                return {"abstract": "Cells were probed with nanodiamonds."}
+
+        with patch("requests.get", return_value=_FakeResp()):
+            abstract = gf.fetch_s2_abstract_by_doi("10.1038/nature12373")
+        self.assertEqual(abstract, "Cells were probed with nanodiamonds.")
+
+    def test_gap_finder_routes_registered(self):
+        from src.app.api.v1.api_router import api_router
+        from src.app.api.v1.routes import gap_finder as gap_routes
+        from src.app.api.v1.routes import library as library_routes
+
+        gap_paths = {getattr(r, "path", None) for r in gap_routes.router.routes}
+        library_paths = {getattr(r, "path", None) for r in library_routes.router.routes}
+        self.assertIn("/graph", gap_paths)
+        self.assertIn("/index", library_paths)
+        self.assertIn("/graph", library_paths)
+        self.assertIn("/ask", library_paths)
+        self.assertIn("/zotero/import", library_paths)
+        self.assertIn("/zotero/export", library_paths)
+        self.assertIn("/alerts/check", library_paths)
+        included = [
+            getattr(getattr(r, "include_context", None), "prefix", None)
+            for r in api_router.routes
+        ]
+        self.assertIn("/gap-finder", included)
+        self.assertIn("/library", included)
+
+    def test_gap_finder_endpoint_shares_llm_rate_limit(self):
+        rate_limit.reset_rate_limits()
+        req = _fake_request("/api/v1/gap-finder/graph", ip="10.0.0.10")
+        for _ in range(10):
+            allowed, _ = rate_limit.check_rate_limit(req)
+            self.assertTrue(allowed)
+        allowed, _ = rate_limit.check_rate_limit(req)
+        self.assertFalse(allowed)
+
+
+class TestKnowledgeGraph(unittest.TestCase):
+    """Move 6: local library, entity graph, cross-paper ask, Zotero, alerts."""
+
+    def setUp(self):
+        from src.app.services import knowledge_graph_service as kg
+
+        self.kg = kg
+        self.user = "test-user-kg"
+        path = kg._library_path(self.user)
+        if path.exists():
+            path.unlink()
+
+    def tearDown(self):
+        path = self.kg._library_path(self.user)
+        if path.exists():
+            path.unlink()
+
+    def _papers(self):
+        return [
+            {
+                "title": "Sleep and Memory Consolidation",
+                "abstract": "Sleep improves memory consolidation through hippocampal replay.",
+                "notes": "Key paper for the thesis chapter.",
+                "authors": ["A. Author"],
+                "year": 2024,
+                "venue": "Nature",
+                "doi": "10.1234/sleep.1",
+                "url": "https://doi.org/10.1234/sleep.1",
+            },
+            {
+                "title": "Hippocampal Replay During Sleep",
+                "abstract": "Hippocampal replay during sleep strengthens memory traces.",
+                "notes": "",
+                "authors": ["B. Author"],
+                "year": 2025,
+                "venue": "Science",
+                "doi": "10.1234/sleep.2",
+                "url": "https://doi.org/10.1234/sleep.2",
+            },
+        ]
+
+    def test_index_dedupes_by_doi_and_merges_notes(self):
+        with patch.object(self.kg, "check_ollama_available", return_value=False):
+            first = self.kg.index_papers(self.user, self._papers())
+            second = self.kg.index_papers(
+                self.user,
+                [{"title": "Sleep and Memory Consolidation", "doi": "10.1234/sleep.1", "notes": "Updated note."}],
+            )
+        self.assertEqual(first["added"], 2)
+        self.assertEqual(second["added"], 0)
+        self.assertEqual(second["updated"], 1)
+        library = self.kg.load_library(self.user)
+        self.assertEqual(len(library["papers"]), 2)
+        self.assertEqual(library["papers"][0]["notes"], "Updated note.")
+
+    def test_entity_graph_links_papers_by_shared_entity(self):
+        with patch.object(self.kg, "check_ollama_available", return_value=False):
+            self.kg.index_papers(self.user, self._papers())
+        graph = self.kg.build_knowledge_graph(self.user)
+        self.assertEqual(graph["stats"]["papers"], 2)
+        self.assertGreater(graph["stats"]["entities"], 0)
+        # "sleep" and "memory" appear in both papers, so they are shared.
+        self.assertIn("sleep", [label.lower() for label in graph["shared_entities"]])
+        self.assertIn("memory", [label.lower() for label in graph["shared_entities"]])
+        paper_nodes = [n for n in graph["nodes"] if n["type"] == "paper"]
+        self.assertEqual(len(paper_nodes), 2)
+
+    def test_generic_words_are_not_entities(self):
+        self.assertEqual(
+            self.kg._drop_generic_entities(["sleep", "methods", "datasets", "memory"]),
+            ["sleep", "memory"],
+        )
+
+    def test_ask_library_keyword_fallback_cites_sources(self):
+        with patch.object(self.kg, "check_ollama_available", return_value=False):
+            self.kg.index_papers(self.user, self._papers())
+            result = self.kg.ask_library(self.user, "how does sleep affect memory consolidation?")
+        self.assertEqual(result["status"], "success")
+        self.assertFalse(result["llm_used"])
+        self.assertEqual(len(result["sources"]), 2)
+        self.assertIn("Sleep and Memory Consolidation", result["answer"])
+
+    def test_ask_library_empty_library(self):
+        result = self.kg.ask_library(self.user, "anything?")
+        self.assertEqual(result["status"], "empty_library")
+
+    def test_zotero_item_parsing_skips_notes(self):
+        item = {
+            "data": {
+                "itemType": "journalArticle",
+                "title": "Zotero Paper",
+                "abstractNote": "An abstract.",
+                "creators": [{"firstName": "Jane", "lastName": "Doe"}],
+                "publicationTitle": "Journal of Tests",
+                "DOI": "10.9999/zotero.1",
+                "url": "https://doi.org/10.9999/zotero.1",
+            }
+        }
+        parsed = self.kg.parse_zotero_item(item)
+        self.assertEqual(parsed["title"], "Zotero Paper")
+        self.assertEqual(parsed["authors"], ["Jane Doe"])
+        self.assertEqual(parsed["doi"], "10.9999/zotero.1")
+        self.assertIsNone(self.kg.parse_zotero_item({"data": {"itemType": "note"}}))
+
+    def test_zotero_import_not_configured_without_key(self):
+        from src.app.core.config import settings
+
+        with patch.object(settings, "ZOTERO_API_KEY", ""), patch.object(
+            settings, "ZOTERO_USER_ID", ""
+        ):
+            result = self.kg.import_zotero_library(self.user)
+        self.assertEqual(result["status"], "not_configured")
+
+    def test_zotero_import_mocked(self):
+        from src.app.core.config import settings
+
+        items = [
+            {
+                "data": {
+                    "itemType": "journalArticle",
+                    "title": "Imported Paper",
+                    "abstractNote": "Imported abstract about sleep.",
+                    "creators": [{"lastName": "Smith"}],
+                    "DOI": "10.9999/import.1",
+                }
+            }
+        ]
+
+        class _FakeResp:
+            def raise_for_status(self):
+                return None
+
+            def json(self):
+                return items
+
+        with (
+            patch.object(settings, "ZOTERO_API_KEY", "fake-key"),
+            patch.object(settings, "ZOTERO_USER_ID", "12345"),
+            patch.object(self.kg.requests, "get", return_value=_FakeResp()),
+            patch.object(self.kg, "check_ollama_available", return_value=False),
+        ):
+            result = self.kg.import_zotero_library(self.user)
+        self.assertEqual(result["status"], "success")
+        self.assertEqual(result["imported"], 1)
+
+    def test_bibtex_and_ris_export(self):
+        with patch.object(self.kg, "check_ollama_available", return_value=False):
+            self.kg.index_papers(self.user, self._papers())
+        library = self.kg.load_library(self.user)
+        bibtex = self.kg.export_bibtex(library["papers"])
+        ris = self.kg.export_ris(library["papers"])
+        self.assertIn("@article{", bibtex)
+        self.assertIn("10.1234/sleep.1", bibtex)
+        self.assertIn("TY  - JOUR", ris)
+        self.assertIn("DO  - 10.1234/sleep.2", ris)
+
+    def test_alerts_check_uses_saved_topics_and_since(self):
+        seen = {}
+
+        def fake_fetch(topic, since, limit=10):
+            seen[topic] = since
+            return [
+                {
+                    "title": "New sleep paper",
+                    "doi": "10.1234/new.1",
+                    "year": 2026,
+                    "publication_date": "2026-11-14",
+                    "authors": ["C. Author"],
+                    "url": "",
+                    "citation_count": 0,
+                }
+            ]
+
+        with patch.object(self.kg, "_fetch_openalex_since", side_effect=fake_fetch):
+            result = self.kg.check_alerts(self.user, topics=["sleep and memory"])
+        self.assertEqual(result["status"], "success")
+        self.assertEqual(result["new_count"], 1)
+        self.assertEqual(result["new_papers"][0]["topic"], "sleep and memory")
+        self.assertIn("sleep and memory", seen)
+        # Second check reuses the stored last_alert_check as the since date.
+        second = self.kg.check_alerts(self.user)
+        self.assertEqual(second["since"], result["checked_at"][:10])
+
+    def test_alerts_check_no_topics(self):
+        result = self.kg.check_alerts(self.user)
+        self.assertEqual(result["status"], "no_topics")
+
+    def test_fetch_openalex_since_keeps_topic_and_sorts_by_date(self):
+        seen = {}
+
+        class _FakeResp:
+            def raise_for_status(self):
+                return None
+
+            def json(self):
+                return {
+                    "results": [
+                        {
+                            "display_name": "Older sleep paper",
+                            "doi": "https://doi.org/10.1234/old.1",
+                            "publication_year": 2026,
+                            "publication_date": "2026-10-20",
+                            "authorships": [],
+                            "cited_by_count": 1,
+                        },
+                        {
+                            "display_name": "Newer sleep paper",
+                            "doi": "https://doi.org/10.1234/new.1",
+                            "publication_year": 2026,
+                            "publication_date": "2026-11-06",
+                            "authorships": [],
+                            "cited_by_count": 2,
+                        },
+                    ]
+                }
+
+        def fake_get(url, params=None, headers=None, timeout=None):
+            seen["params"] = params
+            return _FakeResp()
+
+        with patch.object(self.kg.requests, "get", side_effect=fake_get):
+            papers = self.kg._fetch_openalex_since("sleep and memory", "2026-10-15")
+        # A date sort on the OpenAlex side ignores the search term,
+        # so the request must not ask for one.
+        self.assertNotIn("sort", seen["params"])
+        self.assertEqual(seen["params"]["search"], "sleep and memory")
+        self.assertEqual(papers[0]["title"], "Newer sleep paper")
+        self.assertEqual(papers[1]["title"], "Older sleep paper")
+
+    def test_sync_saved_resolves_via_openalex(self):
+        from src.app.services import knowledge_graph_service as kg
+
+        class _FakeTable:
+            def select(self, *a, **k):
+                return self
+
+            def eq(self, *a, **k):
+                return self
+
+            def execute(self):
+                class _R:
+                    data = [
+                        {
+                            "paper_id": "W123",
+                            "title": "Saved Paper",
+                            "notes": "Read this.",
+                        }
+                    ]
+
+                return _R()
+
+        class _FakeClient:
+            def table(self, name):
+                self.seen_table = name
+                return _FakeTable()
+
+        work = {
+            "id": "https://openalex.org/W123",
+            "display_name": "Saved Paper Full Title",
+            "abstract_inverted_index": {"Sleep": [0], "helps": [1], "memory": [2]},
+            "authorships": [{"author": {"display_name": "A. Author"}}],
+            "publication_year": 2024,
+            "primary_location": {"source": {"display_name": "Nature"}},
+            "doi": "https://doi.org/10.1234/saved.1",
+        }
+        with (
+            patch("src.app.db.client_supabase.get_supabase", return_value=_FakeClient()),
+            patch(
+                "src.app.services.citation_network_service.fetch_work_details",
+                return_value=work,
+            ),
+            patch.object(self.kg, "check_ollama_available", return_value=False),
+        ):
+            result = self.kg.sync_saved_from_supabase(self.user)
+        self.assertEqual(result["status"], "success")
+        self.assertEqual(result["saved_count"], 1)
+        library = self.kg.load_library(self.user)
+        self.assertEqual(library["papers"][0]["abstract"], "Sleep helps memory")
+        self.assertEqual(library["papers"][0]["notes"], "Read this.")
+
+
 if __name__ == "__main__":
     unittest.main()
