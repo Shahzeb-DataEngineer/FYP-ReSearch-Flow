@@ -6,6 +6,8 @@ from collections import defaultdict
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+from .openalex_client import get_openalex_headers, is_key_not_activated
+
 OPENALEX_BASE_URL = "https://api.openalex.org"
 SEMANTIC_SCHOLAR_BASE = "https://api.semanticscholar.org/graph/v1"
 SS_HEADERS = {"User-Agent": "ReSearch-Flow/1.0"}
@@ -59,7 +61,14 @@ def fetch_work_details(work_id: str) -> Optional[Dict[str, Any]]:
         if work_id.startswith("https://openalex.org/"):
             work_id = work_id.replace("https://openalex.org/", "")
         url = f"{OPENALEX_BASE_URL}/works/{work_id}"
-        resp = requests.get(url, timeout=10)
+        headers = get_openalex_headers()
+        resp = requests.get(url, headers=headers, timeout=10)
+        if headers and is_key_not_activated(resp):
+            logging.warning(
+                "OpenAlex API key not activated yet (key_not_activated); "
+                "retrying without a key"
+            )
+            resp = requests.get(url, timeout=10)
         resp.raise_for_status()
         return resp.json()
     except Exception as e:
@@ -74,7 +83,14 @@ def fetch_openalex_cited_by(work_id: str, limit: int = 10) -> List[Dict[str, Any
             work_id = work_id.replace("https://openalex.org/", "")
         url = f"{OPENALEX_BASE_URL}/works"
         params = {"filter": f"cites:{work_id}", "per_page": limit}
-        resp = requests.get(url, params=params, timeout=15)
+        headers = get_openalex_headers()
+        resp = requests.get(url, params=params, headers=headers, timeout=15)
+        if headers and is_key_not_activated(resp):
+            logging.warning(
+                "OpenAlex API key not activated yet (key_not_activated); "
+                "retrying without a key"
+            )
+            resp = requests.get(url, params=params, timeout=15)
         resp.raise_for_status()
         return resp.json().get("results", [])
     except Exception as e:

@@ -74,6 +74,15 @@ class Settings(BaseSettings):
     OLLAMA_VISION_MODEL: Optional[str] = None
     CORE_API_KEY: Optional[str] = None
     SEMANTIC_SCHOLAR_API_KEY: Optional[str] = None
+    # OpenAlex API key (free, requested per email). OpenAlex requires
+    # an api_key since 2026-02-13; without one, requests draw on the
+    # shared-IP daily budget, which is often used up. The key is sent
+    # as an Authorization: Bearer header (see services/openalex_client).
+    # While the key is pending activation, OpenAlex answers 403
+    # key_not_activated; callers then retry once without the key, so
+    # the app keeps working before and after activation. Set it in
+    # backend/.env (OPENALEX_API_KEY); never commit the real key.
+    OPENALEX_API_KEY: Optional[str] = None
 
     # Upstash Redis Configuration
     UPSTASH_REDIS_REST_URL: Optional[str] = None

@@ -12,6 +12,10 @@ from ..core.config import settings
 SEMANTIC_SCHOLAR_BASE = "https://api.semanticscholar.org/graph/v1"
 SEMANTIC_SCHOLAR_PAPER_URL = "https://www.semanticscholar.org/paper"
 
+# Last fetch error, if any (None when the most recent fetch succeeded).
+# See openalex_service.last_error.
+last_error: str | None = None
+
 
 def fetch_semantic_scholar_papers(query: str, limit: int = 20) -> List[Dict[str, Any]]:
     """
@@ -25,7 +29,10 @@ def fetch_semantic_scholar_papers(query: str, limit: int = 20) -> List[Dict[str,
         List of paper dictionaries with Semantic Scholar-specific fields
     """
     logging.info(f"Fetching Semantic Scholar papers for query: {query}, limit: {limit}")
-    
+
+    global last_error
+    last_error = None
+
     try:
         # Semantic Scholar API endpoint
         url = f"{SEMANTIC_SCHOLAR_BASE}/paper/search"
@@ -69,6 +76,7 @@ def fetch_semantic_scholar_papers(query: str, limit: int = 20) -> List[Dict[str,
         return papers
         
     except requests.exceptions.HTTPError as e:
+        last_error = str(e)
         if e.response.status_code == 429:
             logging.error("Semantic Scholar API rate limit exceeded")
         else:
@@ -79,9 +87,11 @@ def fetch_semantic_scholar_papers(query: str, limit: int = 20) -> List[Dict[str,
                 pass
         return []
     except requests.exceptions.RequestException as e:
+        last_error = str(e)
         logging.error(f"Semantic Scholar API error: {str(e)}")
         return []
     except Exception as e:
+        last_error = str(e)
         logging.error(f"Unexpected error in fetch_semantic_scholar_papers: {str(e)}")
         return []
 
