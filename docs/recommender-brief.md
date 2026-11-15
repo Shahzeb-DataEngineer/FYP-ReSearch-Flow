@@ -22,9 +22,10 @@ Shahzeb was the backend developer of the four-person final year team
 After the degree ended, he revived and rebuilt the project on his own
 (November 2026) to make it a working, zero-cost, self-hosted system:
 
-- Replaced the paid LLM stack (OpenAI, OpenRouter, Pinecone, SerpAPI/Google
-  Scholar) with a fully local setup: Ollama (qwen2.5:3b chat model,
-  nomic-embed-text embeddings) and FAISS + BM25 retrieval. The project now
+- Replaced the paid LLM stack (OpenAI, OpenRouter, SerpAPI/Google
+  Scholar) with a mostly local setup: Ollama (qwen2.5:3b chat model,
+  nomic-embed-text embeddings) and Pinecone (Starter free tier) +
+  BM25 retrieval. The project now
   runs with no paid API keys and no per-query cost.
 - Added free paper sources so the system now searches 10 sources:
   OpenAlex, arXiv, CORE, PMC, Semantic Scholar, Crossref, Europe PMC,
@@ -66,10 +67,10 @@ live against the local backend with the 3B model on a CPU-only machine
   paper APIs, a PostgreSQL schema for cached papers, and a reproducible
   evaluation with measured numbers.
 - LLM systems: local model deployment (Ollama), retrieval-augmented
-  generation with FAISS + BM25, structured-output parsing with repair
+  generation with Pinecone + BM25, structured-output parsing with repair
   retries, and working within a small model's context limits.
-- Cost-conscious engineering: the whole system is self-hosted and free to
-  run, which was a deliberate design constraint, not an accident.
+- Cost-conscious engineering: the whole system is free to run, which
+  was a deliberate design constraint, not an accident.
 
 ## Open items (stated honestly)
 

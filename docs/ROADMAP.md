@@ -238,7 +238,7 @@
 
 #### Semantic Search
 - [ ] Vector embeddings (Sentence-BERT)
-- [ ] Vector database (Pinecone/Weaviate)
+- [x] Vector database (Pinecone/Weaviate)
 - [ ] Similarity search
 - [ ] Semantic recommendations
 

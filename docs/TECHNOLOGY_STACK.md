@@ -842,7 +842,7 @@ function ResultsView({ papers }) {
 - [ ] WebSocket for real-time updates
 
 ### Medium-term (3-6 months)
-- [ ] Vector database (Pinecone/Weaviate) for semantic search
+- [x] Vector database (Pinecone/Weaviate) for semantic search
 - [ ] Local LLM deployment (BART/PEGASUS)
 - [ ] Docker containerization
 - [ ] CI/CD pipeline (GitHub Actions)

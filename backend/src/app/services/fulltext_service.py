@@ -8,7 +8,7 @@ sources is ever returned: a paywalled paper honestly reports
 not_available and no PDF URL is invented.
 
 The resolved PDF can then be downloaded, its text extracted with
-the existing PDF service, and indexed into the existing FAISS +
+the existing PDF service, and indexed into the existing Pinecone +
 BM25 RAG store (chat_service.index_paper_text), so RAG ask can
 answer from the full text instead of only the abstract.
 """
@@ -199,7 +199,7 @@ def fetch_fulltext(doi: str, download: bool = True, index: bool = True) -> Dict[
 
     With download False this is just the resolver. With download
     True the PDF is fetched and its text extracted; with index True
-    the text is also indexed into the FAISS + BM25 RAG store so chat
+    the text is also indexed into the Pinecone + BM25 RAG store so chat
     can answer from the full text. Returns the resolver fields plus
     text_chars, paper_id and chat_ready when indexing succeeded.
     """
