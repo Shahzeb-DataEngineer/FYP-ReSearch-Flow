@@ -222,6 +222,10 @@ On a low-RAM machine, use `qwen2.5:3b` instead and set
 
 ## Run with Docker (one command)
 
+Copy `.env.example` to `.env` and fill in real values first (at
+minimum `PINECONE_API_KEY` for RAG chat and `UNPAYWALL_EMAIL`);
+Compose reads `.env` and passes every setting to the containers.
+
 ```bash
 docker compose up --build
 ```

@@ -8,6 +8,15 @@
 # your Ollama runs on another port (for example a manual serve on
 # 11435), set OLLAMA_BASE_URL before starting compose, e.g.:
 #   OLLAMA_BASE_URL=http://host.docker.internal:11435 docker compose up --build
+#
+# Keys: copy the repo-root .env.example to .env and fill in real
+# values first. Compose interpolates ${VAR} from that file, and the
+# environment block below passes every backend setting through to the
+# container (the backend image never copies a .env file: .dockerignore
+# excludes it, so a variable missing here never reaches the app).
+# Empty values are fine: each setting has a safe default, except
+# PINECONE_API_KEY (without it RAG chat answers "Pinecone is not
+# configured") and UNPAYWALL_EMAIL (needs a real address).
 services:
   backend:
     # Build context is the repo root: backend/Dockerfile copies
@@ -21,20 +30,46 @@ services:
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
       OLLAMA_CHAT_MODEL: ${OLLAMA_CHAT_MODEL:-qwen2.5:3b}
       OLLAMA_EMBED_MODEL: ${OLLAMA_EMBED_MODEL:-nomic-embed-text}
+      OLLAMA_NUM_CTX: ${OLLAMA_NUM_CTX:-8192}
+      OLLAMA_VISION_MODEL: ${OLLAMA_VISION_MODEL:-}
       UNPAYWALL_EMAIL: ${UNPAYWALL_EMAIL:-}
       CORE_API_KEY: <redacted>
+      SEMANTIC_SCHOLAR_API_KEY: ${SEMANTIC_SCHOLAR_API_KEY:-}
+      S2_API_KEY: ${S2_API_KEY:-}
+      OPENALEX_API_KEY: ${OPENALEX_API_KEY:-}
       SUPABASE_URL: ${SUPABASE_URL:-}
       SUPABASE_KEY: ${SUPABASE_KEY:-}
       SUPABASE_JWT_SECRET: ${SUPABASE_JWT_SECRET:-}
       CORS_ORIGINS: ${CORS_ORIGINS:-}
       BACKEND_API_KEY: ${BACKEND_API_KEY:-}
+      PINECONE_API_KEY: ${PINECONE_API_KEY:-}
+      PINECONE_INDEX_NAME: ${PINECONE_INDEX_NAME:-research-flow}
+      PINECONE_CLOUD: ${PINECONE_CLOUD:-aws}
+      PINECONE_REGION: ${PINECONE_REGION:-us-east-1}
+      ZOTERO_API_KEY: ${ZOTERO_API_KEY:-}
+      ZOTERO_USER_ID: ${ZOTERO_USER_ID:-}
+      UPSTASH_REDIS_REST_URL: ${UPSTASH_REDIS_REST_URL:-}
+      UPSTASH_REDIS_REST_TOKEN: ${UPSTASH_REDIS_REST_TOKEN:-}
+      RATE_LIMIT_SUMMARIZE_PER_MINUTE: ${RATE_LIMIT_SUMMARIZE_PER_MINUTE:-10}
+      RATE_LIMIT_CHAT_PER_MINUTE: ${RATE_LIMIT_CHAT_PER_MINUTE:-20}
+      RATE_LIMIT_DRAFT_PER_HOUR: ${RATE_LIMIT_DRAFT_PER_HOUR:-2}
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
   frontend:
     # Reuses frontend/Dockerfile: builds the Vite app and serves it
     # with nginx, proxying /api/ to the backend service.
-    build: ./frontend
+    # VITE_* values are baked into the JS bundle at build time, so
+    # they arrive as build args, not runtime env: the Dockerfile
+    # already declares the matching ARGs. Without the Supabase args
+    # the built app has no auth config and login is broken.
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: /api/v1
+        VITE_SUPABASE_URL: ${VITE_SUPABASE_URL:-}
+        VITE_SUPABASE_ANON_KEY: ${VITE_SUPABASE_ANON_KEY:-}
     ports:
       - "3000:80"
     depends_on:
