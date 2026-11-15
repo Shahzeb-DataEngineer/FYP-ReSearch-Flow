@@ -20,7 +20,8 @@ langchain-ollama==1.1.0
 langchain-community
 langchain-classic
 langchain-text-splitters
-faiss-cpu==1.15.1
+faiss-cpu==1.15.1  # still used by the knowledge-graph library ask (knowledge_graph_service.ask_library), which keeps a local ephemeral index over saved abstracts and notes
+pinecone==10.3.0  # RAG vector store (Starter free tier); embeddings stay local nomic-embed-text
 rank-bm25==0.2.2
 reportlab
 cachetools

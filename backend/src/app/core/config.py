@@ -84,6 +84,26 @@ class Settings(BaseSettings):
     # backend/.env (OPENALEX_API_KEY); never commit the real key.
     OPENALEX_API_KEY: Optional[str] = None
 
+    # Pinecone vector store for RAG chat (Starter free tier).
+    # Embeddings stay local (nomic-embed-text, 768 dim); only the
+    # vectors live in Pinecone. Starter is $0 with no credit card:
+    # 2 GB storage, 2M write units and 1M read units per month,
+    # 5 indexes, and it runs on AWS us-east-1 only, so the defaults
+    # below are the Starter limits, not a suggestion. Paid Standard
+    # starts at a $50/month minimum: nothing here auto-upgrades, and
+    # the index is created serverless on Starter. Get a free key at
+    # pinecone.io and set PINECONE_API_KEY in backend/.env; never
+    # commit the real key. Without the key, RAG chat answers a clear
+    # "Pinecone is not configured" error instead of failing silently.
+    # The index must be 768 dimensions with cosine similarity, to
+    # match nomic-embed-text. The cross-paper library ask in
+    # knowledge_graph_service.py still uses a local FAISS index over
+    # saved abstracts and notes; only the per-paper RAG store moved.
+    PINECONE_API_KEY: Optional[str] = None
+    PINECONE_INDEX_NAME: str = "research-flow"
+    PINECONE_CLOUD: str = "aws"
+    PINECONE_REGION: str = "us-east-1"
+
     # Zotero (free API, read-only import for Move 6). A user API key
     # is created at zotero.org/settings/keys; set both in backend/.env.
     # Never commit the real key.

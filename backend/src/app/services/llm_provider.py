@@ -2,8 +2,9 @@
 LLM Provider - Ollama (local, zero cost).
 
 Single place where the chat model and the embedding model are created.
-Everything else in the backend asks this module for a model; nothing
-imports an OpenAI / Pinecone client directly any more.
+Everything else in the backend asks this module for a model; the
+Pinecone client lives in services/pinecone_store.py, and nothing
+imports an OpenAI client directly any more.
 
 Models are chosen by environment, so the same code runs on different
 machines:

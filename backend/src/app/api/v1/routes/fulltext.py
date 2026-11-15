@@ -7,7 +7,7 @@ paywalled or unknown DOI returns status not_available with no
 PDF URL, never an invented one.
 
 POST /papers/fulltext downloads the resolved PDF, extracts its
-text and indexes it into the FAISS + BM25 RAG store, so chat can
+text and indexes it into the Pinecone + BM25 RAG store, so chat can
 answer from the full text.
 """
 import asyncio

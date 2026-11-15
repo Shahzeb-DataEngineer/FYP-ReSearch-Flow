@@ -1,7 +1,7 @@
 """
 Unified Chat Routes
 Handles paper Q&A conversations with Redis-backed session persistence.
-All chat goes through chat_service.py using local Ollama RAG (FAISS + BM25).
+All chat goes through chat_service.py using Ollama RAG (Pinecone + BM25).
 """
 import asyncio
 import uuid
@@ -31,7 +31,7 @@ async def chat_ask(
     under "<user_id>:<session_id>", so one user cannot read or wipe
     another user's history by guessing a UUID.
 
-    Uses local FAISS for vector storage, LangChain for retrieval + generation,
+    Uses Pinecone for vector storage, LangChain for retrieval + generation,
     and Upstash Redis for server-side conversation history.
 
     Request body:
@@ -97,7 +97,7 @@ async def chat_ask(
                 detail="Provide 'pdf_text', 'pdf_url', or 'abstract'",
             )
 
-        # ── Get answer via local Ollama RAG (FAISS + BM25 + Redis) ─────────
+        # ── Get answer via Ollama RAG (Pinecone + BM25 + Redis) ─────────
         # Run sync RAG in a thread so indexing + LLM work does not block the event loop.
         answer = await asyncio.to_thread(
             ask_about_paper_with_session,

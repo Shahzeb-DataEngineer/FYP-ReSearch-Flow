@@ -1,11 +1,15 @@
 """
 Chat Service
-Handles Q&A conversations about research papers using local Ollama
-RAG (FAISS + BM25, zero cost). No OpenAI, no Pinecone.
+Handles Q&A conversations about research papers using Ollama RAG
+(Pinecone + BM25). Embeddings are local nomic-embed-text (768 dim);
+the vectors live in a Pinecone serverless index (Starter free tier),
+one paper's chunks isolated by a paper_id metadata filter.
 
-Embeddings are nomic-embed-text (768 dim). A FAISS index is built
-fresh per paper in memory and rebuilt after a restart; there is no
-shared cloud index and no Pinecone index to reuse.
+There is no local vector index in this path any more: the old
+in-memory FAISS index was replaced by Pinecone, so a paper indexed
+once stays indexed across restarts, and upserts are idempotent
+(deterministic chunk ids). When PINECONE_API_KEY is unset, RAG chat
+raises a clear error instead of silently falling back.
 """
 import hashlib
 import json
@@ -23,15 +27,16 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, Base
 from langchain_classic.chains import create_history_aware_retriever, create_retrieval_chain
 from langchain_classic.chains.combine_documents import create_stuff_documents_chain
 from langchain_community.retrievers import BM25Retriever
-from langchain_community.vectorstores import FAISS
 from langchain_classic.retrievers import EnsembleRetriever
 
 from .llm_provider import get_models
 from .model_registry import get_active_chat_model
 from .usage_meter import record_llm_call
+from .pinecone_store import PineconeRetriever, upsert_documents
 
-# In-memory FAISS index per paper (built fresh, rebuilt after restart).
-_faiss_stores: Dict[str, FAISS] = {}
+# Papers already upserted into Pinecone in this process. Pinecone
+# itself persists across restarts; this set only avoids re-upserting
+# the same paper twice in one process (upserts are idempotent anyway).
 _indexed_paper_ids: set = set()
 
 # In-memory store of raw (pre-contextual) chunks per paper for BM25 keyword retrieval.
@@ -125,11 +130,11 @@ def _split_to_documents(
     Split paper text into chunks and attach metadata.
 
     Optionally (CHAT_CONTEXTUAL_CHUNK_PREFIX=1) prepends an LLM summary per chunk
-    for FAISS; default is plain chunks only so the first question returns quickly.
+    for Pinecone; default is plain chunks only so the first question returns quickly.
 
     Returns:
         raw_chunks:            Original chunks (BM25 keyword retrieval)
-        contextualized_chunks: Chunks for FAISS vector indexing
+        contextualized_chunks: Chunks for Pinecone vector indexing
     """
     meta = {"paper_id": paper_id}
     if paper_title:
@@ -168,20 +173,6 @@ def _split_to_documents(
     return raw_chunks, contextualized_chunks
 
 
-def _stable_chunk_ids(chunks: List[Document], paper_id: str) -> List[str]:
-    """
-    Deterministic chunk IDs — safe to upsert multiple times without creating duplicates.
-    """
-    ids: List[str] = []
-    for i, d in enumerate(chunks):
-        h = hashlib.sha256()
-        h.update(paper_id.encode("utf-8"))
-        h.update(b"\n")
-        h.update(d.page_content.encode("utf-8", errors="ignore"))
-        ids.append(f"{paper_id[:12]}-{i}-{h.hexdigest()[:24]}")
-    return ids
-
-
 def _index_paper(
     paper_text: str,
     paper_id: str,
@@ -190,18 +181,21 @@ def _index_paper(
     paper_source: Optional[str],
 ):
     """
-    Build a fresh in-memory FAISS index for one paper (768-dim
-    nomic-embed-text vectors). The index is per paper and per process:
-    it is rebuilt after a restart, never loaded from a Pinecone index.
-    Returns the FAISS store.
+    Upsert one paper's chunks into Pinecone (768-dim nomic-embed-text
+    vectors, paper_id metadata filter). The index is shared across
+    papers and persists across restarts; chunk ids are deterministic,
+    so re-indexing the same paper overwrites instead of duplicating.
+    Raises PineconeNotConfiguredError when PINECONE_API_KEY is unset.
+    Returns a PineconeRetriever scoped to this paper.
     """
     global _indexed_paper_ids
 
-    if paper_id in _indexed_paper_ids and paper_id in _faiss_stores:
+    if paper_id in _indexed_paper_ids:
         logging.debug(f"Paper {paper_id[:12]} already indexed (cached).")
-        return _faiss_stores[paper_id]
+        embeddings, _llm = _get_models()
+        return PineconeRetriever(paper_id=paper_id, embeddings=embeddings)
 
-    logging.info(f"Indexing paper {paper_id[:12]} into local FAISS...")
+    logging.info(f"Indexing paper {paper_id[:12]} into Pinecone...")
     embeddings, _llm = _get_models()
     raw_chunks, contextualized_chunks = _split_to_documents(
         paper_text,
@@ -210,12 +204,11 @@ def _index_paper(
         paper_title=paper_title,
         paper_source=paper_source,
     )
-    vectorstore = FAISS.from_documents(contextualized_chunks, embeddings)
-    _faiss_stores[paper_id] = vectorstore
+    upsert_documents(contextualized_chunks, embeddings, paper_id)
     _paper_chunks_cache[paper_id] = raw_chunks
     _indexed_paper_ids.add(paper_id)
     logging.info(f"Paper {paper_id[:12]} indexed successfully ({len(contextualized_chunks)} chunks)")
-    return vectorstore
+    return PineconeRetriever(paper_id=paper_id, embeddings=embeddings)
 
 
 def _to_langchain_messages(
@@ -395,7 +388,7 @@ def ask_about_paper(
     paper_source: Optional[str] = None,
 ) -> Optional[str]:
     """
-    Answer a question about a research paper using local Ollama RAG (FAISS + LangChain).
+    Answer a question about a research paper using Ollama RAG (Pinecone + LangChain).
 
     Args:
         question:             User's question about the paper
@@ -420,7 +413,7 @@ def ask_about_paper(
         paper_id = _make_paper_id(paper_text)
 
         # Index only when needed — llm is passed for contextual embeddings
-        vectorstore = _index_paper(
+        pinecone_retriever = _index_paper(
             paper_text=paper_text,
             paper_id=paper_id,
             llm=llm,
@@ -428,7 +421,7 @@ def ask_about_paper(
             paper_source=paper_source,
         )
 
-        # ── Retriever: Ensemble of BM25 (keyword) + FAISS (semantic) ──────
+        # ── Retriever: Ensemble of BM25 (keyword) + Pinecone (semantic) ──────
         #
         # WHY: MMR + MultiQueryRetriever were the root cause of random failures.
         #   - MMR actively discards the most relevant chunk for "diversity"
@@ -437,7 +430,7 @@ def ask_about_paper(
         #
         # FIX: Hybrid retrieval — BM25 catches exact keyword matches that
         # semantic search misses (e.g. specific numbers, names, acronyms).
-        # FAISS semantic search catches meaning-based matches.
+        # Pinecone semantic search catches meaning-based matches.
         # EnsembleRetriever fuses both with Reciprocal Rank Fusion (RRF),
         # which is far more stable than MMR for factual Q&A.
 
@@ -464,15 +457,12 @@ def ask_about_paper(
         bm25_retriever = BM25Retriever.from_documents(bm25_docs)
         bm25_retriever.k = 6
 
-        # FAISS — pure cosine similarity (NOT MMR) for consistent top-k ranking
-        faiss_retriever = vectorstore.as_retriever(
-            search_type="similarity",
-            search_kwargs={"k": 6},
-        )
+        # Pinecone — pure cosine similarity (NOT MMR) for consistent top-k ranking
+        # (top_k=6 is the retriever default; see pinecone_store.PineconeRetriever)
 
         # Ensemble — fuse both retrievers with equal weight using RRF
         retriever = EnsembleRetriever(
-            retrievers=[bm25_retriever, faiss_retriever],
+            retrievers=[bm25_retriever, pinecone_retriever],
             weights=[0.4, 0.6],   # slightly favour semantic; tune if needed
         )
 
@@ -510,7 +500,7 @@ def index_paper_text(
     paper_title: Optional[str] = None,
     paper_source: Optional[str] = None,
 ) -> str:
-    """Index full text into the FAISS + BM25 RAG store.
+    """Index full text into the Pinecone + BM25 RAG store.
 
     Used by the full-text bridge: after a paper PDF is extracted,
     indexing it here makes RAG ask answer from the full text.

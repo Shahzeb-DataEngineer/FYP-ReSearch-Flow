@@ -110,7 +110,7 @@ ReSearch Flow provides an **end-to-end research assistant** that:
 
 ### RAG-based Chat
 - Ask questions about any paper  
-- Hybrid retrieval (local FAISS + BM25, nomic-embed-text)  
+- Hybrid retrieval (Pinecone + BM25, nomic-embed-text)  
 - Context-aware responses  
 
 ### Citation Mesh
@@ -165,7 +165,7 @@ Backend (FastAPI)
 >
 AI Layer (LangChain + local Ollama)
 >
-Databases (Supabase, local FAISS, Redis)
+Databases (Supabase, Pinecone, Redis)
 >
 External APIs (OpenAlex, arXiv, etc.)
 
@@ -188,7 +188,7 @@ External APIs (OpenAlex, arXiv, etc.)
 ### AI & ML
 - Ollama (local, zero cost): qwen2.5:7b / qwen2.5:3b chat, nomic-embed-text embeddings  
 - LangChain  
-- FAISS (local vector store, per-paper index)  
+- Pinecone (serverless vector store, Starter free tier)  
 - BM25 Retriever  
 
 ### Database & Storage
@@ -203,7 +203,9 @@ External APIs (OpenAlex, arXiv, etc.)
 This project uses no paid APIs. LLM work runs on a local Ollama model,
 search uses free sources (OpenAlex, arXiv, CORE, PMC, Semantic Scholar,
 Crossref, Europe PMC, PubMed, DOAJ, Unpaywall), and vector search uses
-local FAISS. Google Scholar was removed because it needed the paid
+Pinecone on the Starter free tier ($0, no credit card; embeddings stay
+local). The cross-paper library ask still uses a local FAISS index over
+saved abstracts and notes. Google Scholar was removed because it needed the paid
 SerpAPI service.
 
 To run the AI features:
@@ -270,7 +272,7 @@ The system uses a hybrid approach:
 
 - **Structured Data** → Supabase (users, saved searches, history)  
 - **Cached Papers** → research_papers table  
-- **Vector Embeddings** → local FAISS (per-paper index)  
+- **Vector Embeddings** → Pinecone (serverless index, paper_id filter)  
 - **Session Data** → Redis  
 
 ---

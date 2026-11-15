@@ -15,6 +15,7 @@ Three pieces, plus one managed service:
 | Frontend | React + Vite app, built once and served by nginx | Host, port 3000 (nginx on 80 inside the container) |
 | Backend | FastAPI, serves `/api/v1/*`, `/health`, `/ready` | Host, port 8000 |
 | Ollama | Local LLM: `qwen2.5:3b` chat, `nomic-embed-text` embeddings | Host, outside Docker, port 11434 (or 11435) |
+| Pinecone | RAG vector store (Starter free tier): 768-dim vectors, one serverless index, per-paper metadata filter | Managed, pinecone.io, AWS us-east-1 |
 | Supabase | Auth + Postgres for saved papers, notes, search history | Managed, free tier |
 
 Search is public: anyone can search papers without an account. Summarize,
@@ -57,6 +58,12 @@ because Hetzner raised cloud prices twice in 2026 alone.
   current pages).
 - Domain: about $10-15/year. HTTPS certificate: free via Let's Encrypt.
 - Supabase: free tier covers this workload (auth + a small Postgres).
+- Pinecone Starter: $0, no credit card (2 GB storage, 2M write units
+  and 1M read units per month, 5 indexes, AWS us-east-1 only). The
+  RAG vector store lives there; embeddings stay local. Paid Standard
+  starts at a $50/month minimum, so stay inside Starter: at 768
+  dimensions about 500,000 chunk records fit in 2 GB, far above this
+  project's scale, and nothing in the code auto-upgrades.
 - Paid LLM APIs: none. The whole point of the Ollama setup is that
   there is no per-token bill.
 
@@ -88,6 +95,10 @@ Backend (`backend/.env`, see `backend/.env.example`):
 | `CORE_API_KEY` | no | Only if CORE search is wanted; without it CORE returns no results |
 | `SEMANTIC_SCHOLAR_API_KEY` | no | Optional; without it Semantic Scholar is rate-limited to 100 requests per 5 minutes |
 | `OPENALEX_API_KEY` | recommended | Free OpenAlex API key (one per email, requested at api.openalex.org). Without it, OpenAlex requests draw on the shared-IP daily budget, which is often used up. While the key is pending activation, requests with it get 403 `key_not_activated` and the backend retries once without the key, so the app keeps working. Click the activation link in the key-request email to activate it |
+| `PINECONE_API_KEY` | yes (for RAG chat) | Free Starter API key from pinecone.io (no credit card). Without it, RAG chat answers a clear "Pinecone is not configured" error; search still works, but ask-about-paper, the full-text bridge index step, and Deep Review retrieval need the store |
+| `PINECONE_INDEX_NAME` | no | Default `research-flow`. The backend creates the index on first use if it does not exist |
+| `PINECONE_CLOUD` | no | Default `aws`. Starter runs on AWS us-east-1 only, so do not change this unless you are on a paid plan |
+| `PINECONE_REGION` | no | Default `us-east-1`. Same Starter limit as above |
 | `RATE_LIMIT_SUMMARIZE_PER_MINUTE` | no | Default 10 per IP |
 | `RATE_LIMIT_CHAT_PER_MINUTE` | no | Default 20 per IP |
 | `RATE_LIMIT_DRAFT_PER_HOUR` | no | Default 2 per IP |
@@ -99,6 +110,36 @@ Frontend (build-time, see `frontend/.env.example`):
 | `VITE_SUPABASE_URL` | yes | Same Supabase project URL |
 | `VITE_SUPABASE_ANON_KEY` | yes | Same publishable key as the backend |
 | `VITE_API_URL` | no | Default `/api/v1`; nginx proxies `/api/` to the backend, so leave it unset in Docker |
+
+## Pinecone setup (free Starter tier)
+
+RAG chat stores its vectors in Pinecone. Embeddings are computed
+locally with nomic-embed-text (768 dim); only the vectors leave the
+machine. Setup takes about two minutes:
+
+1. Create a free account at pinecone.io and copy an API key from the
+   dashboard (no credit card needed for Starter).
+2. Put it in `backend/.env` as `PINECONE_API_KEY=<key>`. Never commit
+   the real key.
+3. Start the backend. On the first RAG call it creates the index
+   `research-flow` itself if it does not exist: serverless, AWS
+   us-east-1, 768 dimensions, cosine similarity. You do not need to
+   create the index by hand, and you must not create it with a
+   different dimension: the vectors are 768-dim and a mismatch fails
+   every upsert.
+
+Starter limits to stay inside: 2 GB storage, 2M write units and 1M
+read units per month, 5 indexes, 100 namespaces per index, AWS
+us-east-1 only. One indexed paper is a few hundred vectors; at 768
+dimensions about 500,000 chunk records fit in 2 GB, so this project
+will not come close. Paid Standard starts at a $50/month minimum:
+the code never upgrades on its own, so the only way to get a bill is
+to change the plan in the Pinecone dashboard yourself.
+
+Without the key, RAG chat fails with a clear "Pinecone is not
+configured" error. The cross-paper library ask
+(`POST /api/v1/library/ask`) is unaffected: it still uses a local
+FAISS index over saved abstracts and notes.
 
 ## Deploy on Railway (chosen host)
 
@@ -139,6 +180,7 @@ Backend service (Variables tab). Values come from the local
 
 - `SUPABASE_URL`, `SUPABASE_KEY`, `SUPABASE_JWT_SECRET`,
   `OPENALEX_API_KEY`, `UNPAYWALL_EMAIL`, `CORS_ORIGINS`,
+  `PINECONE_API_KEY` (required for RAG chat),
   `BACKEND_API_KEY` (optional, legacy shared-key guard).
 - `OLLAMA_BASE_URL=http://ollama.railway.internal:11434` - replace
   `ollama` with the Ollama service's actual name if you name it
