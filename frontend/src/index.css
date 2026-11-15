@@ -1,9 +1,106 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@300;400;500;600;700&display=swap');
 @import "tailwindcss";
 
-* {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+/* Enables the `dark:` variant, driven by a `.dark` class on <html>. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+  --font-display: 'Fraunces', Georgia, 'Times New Roman', serif;
+
+  /* Semantic tokens - every surface in the app uses these, so the whole
+     UI re-themes by overriding the variables under `.dark` below. */
+  --color-paper: #FAFAF7;
+  --color-surface: #FFFFFF;
+  --color-ink: #1C1917;
+  --color-ink-soft: #44403C;
+  --color-muted: #57534E;
+  --color-faint: #E7E5E4;
+  --color-fill: #F5F5F4;
+  --color-fill-strong: #E7E5E4;
+  --color-accent: #0F766E;
+  --color-accent-hover: #115E59;
+  --color-accent-soft: #CCFBF1;
+  --color-accent-tint: #F0FDFA;
+  --color-warn: #B45309;
+  --color-warn-bg: #FFFBEB;
+  --color-danger: #B91C1C;
+  --color-danger-soft: #FEF2F2;
+  --color-success: #15803D;
+  --color-success-soft: #F0FDF4;
+  --color-info: #2563EB;
+  --color-info-soft: #EFF6FF;
+
+  --shadow-soft: 0 1px 2px rgb(28 25 23 / 0.05), 0 4px 16px -4px rgb(28 25 23 / 0.08);
+  --shadow-lift: 0 2px 4px rgb(28 25 23 / 0.06), 0 12px 32px -8px rgb(28 25 23 / 0.16);
 }
+
+/* Dark theme: same tokens, tuned for a near-black canvas (Linear-style:
+   #0B0C0E page, #15181C cards, 1px borders for hierarchy, brighter teal
+   accent for contrast on dark). Because Tailwind v4 utilities read these
+   CSS variables, every token class re-themes automatically. */
+.dark {
+  --color-paper: #0B0C0E;
+  --color-surface: #15181C;
+  --color-ink: #F5F5F4;
+  --color-ink-soft: #D6D3D1;
+  --color-muted: #A8A29E;
+  --color-faint: #292524;
+  --color-fill: #1C1917;
+  --color-fill-strong: #292524;
+  --color-accent: #2DD4BF;
+  --color-accent-hover: #5EEAD4;
+  --color-accent-soft: rgb(45 212 191 / 0.16);
+  --color-accent-tint: rgb(45 212 191 / 0.08);
+  --color-warn: #FBBF24;
+  --color-warn-bg: rgb(251 191 36 / 0.12);
+  --color-danger: #F87171;
+  --color-danger-soft: rgb(248 113 113 / 0.14);
+  --color-success: #4ADE80;
+  --color-success-soft: rgb(74 222 128 / 0.14);
+  --color-info: #60A5FA;
+  --color-info-soft: rgb(96 165 250 / 0.14);
+
+  --shadow-soft: 0 1px 2px rgb(0 0 0 / 0.4), 0 4px 16px -4px rgb(0 0 0 / 0.5);
+  --shadow-lift: 0 2px 4px rgb(0 0 0 / 0.5), 0 12px 32px -8px rgb(0 0 0 / 0.6);
+
+  color-scheme: dark;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: var(--color-paper);
+  color: var(--color-ink);
+}
+
+/* Source-badge hues: light pills in light mode, translucent tints in dark. */
+.dark .bg-amber-100 { background-color: rgb(146 64 14 / 0.4); }
+.dark .bg-yellow-100 { background-color: rgb(133 77 14 / 0.4); }
+.dark .bg-blue-100 { background-color: rgb(30 58 138 / 0.5); }
+.dark .bg-green-100 { background-color: rgb(20 83 45 / 0.5); }
+.dark .bg-purple-100 { background-color: rgb(88 28 135 / 0.5); }
+.dark .bg-pink-100 { background-color: rgb(131 24 67 / 0.5); }
+.dark .bg-cyan-100 { background-color: rgb(8 51 68 / 0.55); }
+.dark .bg-orange-100 { background-color: rgb(124 45 18 / 0.45); }
+.dark .bg-lime-100 { background-color: rgb(54 83 20 / 0.5); }
+.dark .bg-teal-100 { background-color: rgb(19 78 74 / 0.55); }
+.dark .text-amber-800 { color: #FCD34D; }
+.dark .text-yellow-800 { color: #FDE047; }
+.dark .text-blue-800 { color: #93C5FD; }
+.dark .text-teal-800 { color: #5EEAD4; }
+.dark .border-amber-200,
+.dark .border-yellow-200,
+.dark .border-blue-200 { border-color: rgb(255 255 255 / 0.14); }
+.dark .border-amber-300 { border-color: rgb(251 191 36 / 0.4); }
+.dark .hover\:bg-amber-100:hover { background-color: rgb(146 64 14 / 0.5); }
+
+/* Solid black buttons (CitationMesh / notes modal): keep them visible on dark. */
+.dark .bg-black { background-color: #44403C; }
+.dark .hover\:bg-gray-800:hover { background-color: #57534E; }
+
+/* Native controls in dark mode. */
+.dark select option { background-color: #15181C; color: #F5F5F4; }
+.dark input[type="number"]::-webkit-calendar-picker-indicator { filter: invert(1); }
 
 /* Toast animation */
 @keyframes slide-in {
@@ -21,6 +118,40 @@
   animation: slide-in 0.3s ease-out;
 }
 
+/* Premium motion: soft rise used by hero blocks and cards. */
+@keyframes fade-up {
+  from {
+    transform: translateY(10px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.animate-fade-up {
+  animation: fade-up 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.25s ease-out both;
+}
+
+@keyframes aurora-drift {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(24px, -16px, 0) scale(1.08); }
+}
+
+.animate-aurora {
+  animation: aurora-drift 14s ease-in-out infinite;
+}
+
 /* Floating Bubbles animations */
 @keyframes bubbleSlideIn {
   from {
@@ -35,10 +166,10 @@
 
 @keyframes bubbleGlow {
   0%, 100% {
-    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+    box-shadow: 0 0 0 0 rgba(15, 118, 110, 0);
   }
   50% {
-    box-shadow: 0 0 12px 4px rgba(16, 185, 129, 0.15);
+    box-shadow: 0 0 12px 4px rgba(15, 118, 110, 0.15);
   }
 }
 

@@ -2,9 +2,21 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/png" href="/src/assets/researchLogo.jpg" />
+    <link rel="icon" type="image/svg+xml" href="/logo.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ReSearch Flow</title>
+    <meta name="description" content="ReSearch Flow - find, summarize and visualize research papers with a free local AI. Search across 10 free paper sources, chat with papers, and build honest drafts." />
+    <title>ReSearch Flow - Find, Summarize &amp; Visualize Research Papers</title>
+    <script>
+      /* Apply the saved (or system) theme before React mounts to avoid a flash. */
+      try {
+        var t = localStorage.getItem('research-flow-theme');
+        if (t === 'dark' || (!t && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+          document.documentElement.classList.add('dark');
+        }
+      } catch (e) {}
+    </script>
   </head>
   <body>
     <div id="root"></div>

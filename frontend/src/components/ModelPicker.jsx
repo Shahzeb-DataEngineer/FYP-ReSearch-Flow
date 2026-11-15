@@ -28,17 +28,17 @@ export default function ModelPicker() {
 
   if (error) {
     return (
-      <div className="bg-white border border-gray-200 rounded-lg p-4 text-left">
-        <h3 className="text-sm font-semibold text-gray-800 mb-1">Local model</h3>
-        <p className="text-sm text-red-600">{error}</p>
+      <div className="bg-surface border border-faint rounded-2xl p-4 text-left">
+        <h3 className="text-sm font-semibold text-ink mb-1">Local model</h3>
+        <p className="text-sm text-danger">{error}</p>
       </div>
     );
   }
   if (!data) {
     return (
-      <div className="bg-white border border-gray-200 rounded-lg p-4 text-left">
-        <h3 className="text-sm font-semibold text-gray-800">Local model</h3>
-        <p className="text-sm text-gray-500">Loading installed models...</p>
+      <div className="bg-surface border border-faint rounded-2xl p-4 text-left">
+        <h3 className="text-sm font-semibold text-ink">Local model</h3>
+        <p className="text-sm text-muted">Loading installed models...</p>
       </div>
     );
   }
@@ -46,14 +46,14 @@ export default function ModelPicker() {
   const active = data.models.find((m) => m.name === data.active_chat_model);
 
   return (
-    <div className="bg-white border border-gray-200 rounded-lg p-4 text-left">
-      <h3 className="text-sm font-semibold text-gray-800 mb-1">Local model</h3>
-      <p className="text-xs text-gray-500 mb-3">
+    <div className="bg-surface border border-faint rounded-2xl p-4 text-left">
+      <h3 className="text-sm font-semibold text-ink mb-1">Local model</h3>
+      <p className="text-xs text-muted mb-3">
         Runs on this machine with Ollama. No cloud model is ever used, so model use costs $0.00.
       </p>
       {data.ollama_available ? (
         <>
-          <label className="text-xs font-medium text-gray-600" htmlFor="model-picker-select">
+          <label className="text-xs font-medium text-ink" htmlFor="model-picker-select">
             Chat model
           </label>
           <select
@@ -71,30 +71,30 @@ export default function ModelPicker() {
                 setSaving(false);
               }
             }}
-            className="mt-1 w-full border border-gray-300 rounded px-2 py-1.5 text-sm bg-white"
+            className="mt-1 w-full bg-surface border border-faint rounded-lg px-2 py-1.5 text-sm text-ink focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/20"
           >
             {data.chat_models.map((name) => (
               <option key={name} value={name}>{name}</option>
             ))}
           </select>
           {active && (
-            <p className="text-xs text-gray-500 mt-2">
+            <p className="text-xs text-muted mt-2">
               {active.parameter_size || 'unknown size'} parameters
               {active.size_mb ? `, ${active.size_mb} MB` : ''}
               {active.context_length ? `, ${active.context_length.toLocaleString()} context tokens` : ''}
             </p>
           )}
-          <p className="text-xs text-gray-500 mt-1">
+          <p className="text-xs text-muted mt-1">
             Embedding model: {data.active_embed_model}
           </p>
           {data.models.length > 1 && (
-            <p className="text-xs text-gray-400 mt-1">
+            <p className="text-xs text-muted mt-1">
               Also installed: {data.models.map((m) => m.name).join(', ')}
             </p>
           )}
         </>
       ) : (
-        <p className="text-sm text-amber-700">
+        <p className="text-sm text-warn bg-warn-bg border border-faint rounded-lg px-3 py-2">
           The local Ollama server is not reachable. Start Ollama to pick a model.
         </p>
       )}

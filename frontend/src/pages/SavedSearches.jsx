@@ -7,7 +7,7 @@ import { Folder, Pencil, Trash2, X, Check, Search, AlertCircle } from 'lucide-re
 export default function SavedSearches() {
   const navigate = useNavigate();
   const { user, isAuthenticated, loading: authLoading } = useAuth();
-  
+
   const [searches, setSearches] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -18,10 +18,10 @@ export default function SavedSearches() {
   // Fetch saved searches from Supabase
   const fetchSavedSearches = async () => {
     if (!user) return;
-    
+
     setLoading(true);
     setError(null);
-    
+
     try {
       const { data, error } = await supabase
         .from('saved_searches')
@@ -30,7 +30,7 @@ export default function SavedSearches() {
         .order('updated_at', { ascending: false });
 
       if (error) throw error;
-      
+
       setSearches(data || []);
     } catch (err) {
       console.error('Error fetching saved searches:', err);
@@ -45,7 +45,7 @@ export default function SavedSearches() {
       navigate('/auth?mode=login');
       return;
     }
-    
+
     if (user) {
       fetchSavedSearches();
     }
@@ -61,7 +61,7 @@ export default function SavedSearches() {
     try {
       const { error } = await supabase
         .from('saved_searches')
-        .update({ 
+        .update({
           name: editName.trim(),
           updated_at: new Date().toISOString()
         })
@@ -70,9 +70,9 @@ export default function SavedSearches() {
 
       if (error) throw error;
 
-      setSearches(searches.map(s => 
-        s.id === id 
-          ? { ...s, name: editName.trim(), updated_at: new Date().toISOString() } 
+      setSearches(searches.map(s =>
+        s.id === id
+          ? { ...s, name: editName.trim(), updated_at: new Date().toISOString() }
           : s
       ));
       setEditingId(null);
@@ -115,9 +115,9 @@ export default function SavedSearches() {
     if (diffMins < 60) return `${diffMins} min ago`;
     if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
     if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
-    
-    return date.toLocaleDateString('en-US', { 
-      month: 'short', 
+
+    return date.toLocaleDateString('en-US', {
+      month: 'short',
       day: 'numeric',
       year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined
     });
@@ -171,32 +171,32 @@ export default function SavedSearches() {
 
   if (authLoading || loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-paper flex items-center justify-center">
         <div className="flex flex-col items-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-black mb-4"></div>
-          <p className="text-gray-600">Loading saved searches...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-accent mb-4"></div>
+          <p className="text-muted">Loading saved searches...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-4xl mx-auto px-4 py-8">
+    <div className="bg-paper">
+      <div className="max-w-7xl mx-auto px-6 py-10">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-2xl font-bold text-black">Saved Searches</h1>
-          <p className="text-gray-500 mt-1">Manage your saved research queries</p>
+          <h1 className="font-display text-3xl font-semibold text-ink">Saved Searches</h1>
+          <p className="text-muted mt-1">Manage your saved research queries</p>
         </div>
 
         {/* Error Message */}
         {error && (
-          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center gap-3">
-            <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
-            <p className="text-red-700 text-sm">{error}</p>
-            <button 
+          <div className="mb-6 p-4 bg-danger-soft border border-danger-soft rounded-2xl flex items-center gap-3">
+            <AlertCircle className="w-5 h-5 text-danger flex-shrink-0" />
+            <p className="text-danger text-sm">{error}</p>
+            <button
               onClick={() => setError(null)}
-              className="ml-auto text-red-500 hover:text-red-700"
+              className="ml-auto text-danger hover:text-danger"
             >
               <X className="w-4 h-4" />
             </button>
@@ -204,19 +204,19 @@ export default function SavedSearches() {
         )}
 
         {/* Searches Table */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        <div className="bg-surface rounded-2xl border border-faint overflow-hidden">
           {/* Table Header */}
-          <div className="grid grid-cols-12 gap-4 px-6 py-3 bg-gray-50 border-b border-gray-200">
-            <div className="col-span-6 text-sm font-medium text-gray-600">Name</div>
-            <div className="col-span-4 text-sm font-medium text-gray-600">Last updated</div>
-            <div className="col-span-2 text-sm font-medium text-gray-600 text-right">Actions</div>
+          <div className="grid grid-cols-12 gap-4 px-6 py-3 bg-fill border-b border-faint">
+            <div className="col-span-6 text-sm font-medium text-muted">Name</div>
+            <div className="col-span-4 text-sm font-medium text-muted">Last updated</div>
+            <div className="col-span-2 text-sm font-medium text-muted text-right">Actions</div>
           </div>
 
           {/* Table Body */}
           {searches.length === 0 ? (
             <div className="px-6 py-16 text-center">
-              <Search className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-              <p className="text-gray-500 text-lg">No saved searches</p>
+              <Search className="w-12 h-12 text-faint mx-auto mb-4" />
+              <p className="text-muted text-lg">No saved searches</p>
             </div>
           ) : (
             <div>
@@ -224,13 +224,13 @@ export default function SavedSearches() {
                 <div
                   key={search.id}
                   onClick={() => handleSearchClick(search)}
-                  className={`grid grid-cols-12 gap-4 px-6 py-4 border-b border-gray-100 last:border-b-0 hover:bg-gray-50 transition-colors ${
+                  className={`grid grid-cols-12 gap-4 px-6 py-4 border-b border-faint last:border-b-0 hover:bg-fill transition-colors ${
                     editingId !== search.id && deleteConfirmId !== search.id ? 'cursor-pointer' : ''
                   }`}
                 >
                   {/* Name Column */}
                   <div className="col-span-6 flex items-center gap-3">
-                    <Folder className="w-5 h-5 text-gray-400 flex-shrink-0" />
+                    <Folder className="w-5 h-5 text-muted flex-shrink-0" />
                     {editingId === search.id ? (
                       <input
                         type="text"
@@ -241,17 +241,17 @@ export default function SavedSearches() {
                           if (e.key === 'Enter') confirmRename(search.id, e);
                           if (e.key === 'Escape') cancelEditing(e);
                         }}
-                        className="flex-1 px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent text-sm"
+                        className="flex-1 px-2 py-1 bg-surface border border-faint rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent text-sm text-ink"
                         autoFocus
                       />
                     ) : (
-                      <span className="text-black font-medium truncate">{search.name}</span>
+                      <span className="text-ink font-medium truncate">{search.name}</span>
                     )}
                   </div>
 
                   {/* Last Updated Column */}
                   <div className="col-span-4 flex items-center">
-                    <span className="text-gray-500 text-sm">{formatDate(search.updated_at)}</span>
+                    <span className="text-muted text-sm">{formatDate(search.updated_at)}</span>
                   </div>
 
                   {/* Actions Column */}
@@ -260,14 +260,14 @@ export default function SavedSearches() {
                       <>
                         <button
                           onClick={(e) => confirmDelete(search.id, e)}
-                          className="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors"
+                          className="p-1.5 text-danger hover:bg-danger-soft rounded-full transition-colors"
                           title="Confirm delete"
                         >
                           <Check className="w-4 h-4" />
                         </button>
                         <button
                           onClick={cancelDelete}
-                          className="p-1.5 text-gray-500 hover:bg-gray-100 rounded transition-colors"
+                          className="p-1.5 text-muted hover:bg-fill rounded-full transition-colors"
                           title="Cancel"
                         >
                           <X className="w-4 h-4" />
@@ -277,14 +277,14 @@ export default function SavedSearches() {
                       <>
                         <button
                           onClick={(e) => confirmRename(search.id, e)}
-                          className="p-1.5 text-green-600 hover:bg-green-50 rounded transition-colors"
+                          className="p-1.5 text-success hover:bg-accent-tint rounded-full transition-colors"
                           title="Save"
                         >
                           <Check className="w-4 h-4" />
                         </button>
                         <button
                           onClick={cancelEditing}
-                          className="p-1.5 text-gray-500 hover:bg-gray-100 rounded transition-colors"
+                          className="p-1.5 text-muted hover:bg-fill rounded-full transition-colors"
                           title="Cancel"
                         >
                           <X className="w-4 h-4" />
@@ -294,14 +294,14 @@ export default function SavedSearches() {
                       <>
                         <button
                           onClick={(e) => startEditing(search, e)}
-                          className="p-1.5 text-gray-400 hover:text-black hover:bg-gray-100 rounded transition-colors"
+                          className="p-1.5 text-muted hover:text-ink hover:bg-fill rounded-full transition-colors"
                           title="Rename"
                         >
                           <Pencil className="w-4 h-4" />
                         </button>
                         <button
                           onClick={(e) => showDeleteConfirm(search.id, e)}
-                          className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                          className="p-1.5 text-muted hover:text-danger hover:bg-danger-soft rounded-full transition-colors"
                           title="Delete"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -317,7 +317,7 @@ export default function SavedSearches() {
 
         {/* Info */}
         {searches.length > 0 && (
-          <p className="text-center text-gray-400 text-sm mt-6">
+          <p className="text-center text-muted text-sm mt-6">
             Click on a search to view results
           </p>
         )}
@@ -325,4 +325,3 @@ export default function SavedSearches() {
     </div>
   );
 }
-

@@ -85,10 +85,10 @@ const FloatingBubbles = ({ summaryJobs, onBubbleClick, onDismiss }) => {
               hover:scale-[1.02] hover:shadow-xl
               backdrop-blur-lg
               ${job.status === 'loading'
-                ? 'bg-white/95 border-blue-200 hover:border-blue-300'
+                ? 'bg-surface/95 border-info-soft hover:border-blue-300'
                 : job.status === 'done'
-                  ? 'bg-white/95 border-emerald-200 hover:border-emerald-400 summary-bubble-done'
-                  : 'bg-white/95 border-red-200 hover:border-red-300'
+                  ? 'bg-surface/95 border-success-soft hover:border-success summary-bubble-done'
+                  : 'bg-surface/95 border-danger-soft hover:border-red-300'
               }
             `}
             style={{
@@ -100,29 +100,29 @@ const FloatingBubbles = ({ summaryJobs, onBubbleClick, onDismiss }) => {
             <div className={`
               flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center
               ${job.status === 'loading'
-                ? 'bg-blue-50'
+                ? 'bg-info-soft'
                 : job.status === 'done'
-                  ? 'bg-emerald-50'
-                  : 'bg-red-50'
+                  ? 'bg-success-soft'
+                  : 'bg-danger-soft'
               }
             `}>
               {job.status === 'loading' ? (
                 <Loader2 className="w-5 h-5 text-blue-500 animate-spin" />
               ) : job.status === 'done' ? (
-                <CheckCircle className="w-5 h-5 text-emerald-500" />
+                <CheckCircle className="w-5 h-5 text-success" />
               ) : (
-                <AlertCircle className="w-5 h-5 text-red-500" />
+                <AlertCircle className="w-5 h-5 text-danger" />
               )}
             </div>
 
             {/* Content */}
             <div className="flex-1 min-w-0">
               <p className={`text-sm font-medium truncate ${
-                job.status === 'done' ? 'text-emerald-800' : job.status === 'error' ? 'text-red-800' : 'text-gray-800'
+                job.status === 'done' ? 'text-success' : job.status === 'error' ? 'text-danger' : 'text-ink'
               }`}>
                 {truncateTitle(job.paper?.title)}
               </p>
-              <p className="text-xs text-gray-500 mt-0.5">
+              <p className="text-xs text-muted mt-0.5">
                 {job.status === 'loading'
                   ? `Summarizing… ${getElapsedTime(job.startedAt)}`
                   : job.status === 'done'
@@ -135,10 +135,10 @@ const FloatingBubbles = ({ summaryJobs, onBubbleClick, onDismiss }) => {
             {/* Dismiss Button */}
             <button
               onClick={(e) => handleDismiss(e, job.paperId)}
-              className="flex-shrink-0 p-1 rounded-lg opacity-0 group-hover:opacity-100 hover:bg-gray-100 transition-all duration-200"
+              className="flex-shrink-0 p-1 rounded-lg opacity-0 group-hover:opacity-100 hover:bg-fill transition-all duration-200"
               title="Dismiss"
             >
-              <X className="w-3.5 h-3.5 text-gray-400" />
+              <X className="w-3.5 h-3.5 text-muted" />
             </button>
 
             {/* Glow effect for done state */}
@@ -150,7 +150,7 @@ const FloatingBubbles = ({ summaryJobs, onBubbleClick, onDismiss }) => {
 
         {/* Hidden count indicator */}
         {hiddenCount > 0 && !collapsed && (
-          <div className="text-xs text-gray-500 text-right pr-2 font-medium">
+          <div className="text-xs text-muted text-right pr-2 font-medium">
             +{hiddenCount} more summarization{hiddenCount > 1 ? 's' : ''}
           </div>
         )}
@@ -165,10 +165,10 @@ const FloatingBubbles = ({ summaryJobs, onBubbleClick, onDismiss }) => {
           transition-all duration-300 ease-out
           hover:shadow-xl hover:scale-[1.02]
           ${doneCount > 0 && loadingCount === 0
-            ? 'bg-emerald-50/95 border-emerald-200 text-emerald-800'
+            ? 'bg-success-soft/95 border-success-soft text-success'
             : errorCount > 0 && loadingCount === 0
-              ? 'bg-red-50/95 border-red-200 text-red-800'
-              : 'bg-white/95 border-gray-200 text-gray-800'
+              ? 'bg-danger-soft/95 border-danger-soft text-danger'
+              : 'bg-surface/95 border-faint text-ink'
           }
         `}
       >
@@ -182,11 +182,11 @@ const FloatingBubbles = ({ summaryJobs, onBubbleClick, onDismiss }) => {
           )}
           {loadingCount > 0 && doneCount > 0 && ' · '}
           {doneCount > 0 && (
-            <span className="text-emerald-600">{doneCount} ready</span>
+            <span className="text-success">{doneCount} ready</span>
           )}
           {(loadingCount > 0 || doneCount > 0) && errorCount > 0 && ' · '}
           {errorCount > 0 && (
-            <span className="text-red-600">{errorCount} failed</span>
+            <span className="text-danger">{errorCount} failed</span>
           )}
           {loadingCount === 0 && doneCount === 0 && errorCount === 0 && 'Summaries'}
         </span>

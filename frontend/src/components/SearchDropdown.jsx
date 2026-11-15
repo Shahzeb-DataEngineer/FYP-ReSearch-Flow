@@ -174,8 +174,8 @@ export default function SearchDropdown({ topic, searchQuery }) {
       {/* Save/Rename Modal */}
       {(showSaveModal || showRenameModal) && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl p-6 w-full max-w-md shadow-2xl">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">
+          <div className="bg-surface rounded-xl p-6 w-full max-w-md shadow-2xl">
+            <h3 className="text-lg font-semibold text-ink mb-4">
               {showSaveModal ? 'Save Search' : 'Rename Search'}
             </h3>
             <input
@@ -187,7 +187,7 @@ export default function SearchDropdown({ topic, searchQuery }) {
               }}
               placeholder="Enter search name..."
               className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-black text-base ${
-                modalError ? 'border-red-500' : 'border-gray-300'
+                modalError ? 'border-danger' : 'border-faint'
               }`}
               autoFocus
               onKeyDown={(e) => {
@@ -196,12 +196,12 @@ export default function SearchDropdown({ topic, searchQuery }) {
               }}
             />
             {modalError && (
-              <p className="mt-2 text-sm text-red-600">{modalError}</p>
+              <p className="mt-2 text-sm text-danger">{modalError}</p>
             )}
             <div className="flex justify-end gap-3 mt-5">
               <button
                 onClick={() => { setShowSaveModal(false); setShowRenameModal(false); setModalInputValue(''); setModalError(''); }}
-                className="px-5 py-2.5 text-gray-600 hover:text-black font-medium transition-colors"
+                className="px-5 py-2.5 text-muted hover:text-black font-medium transition-colors"
               >
                 Cancel
               </button>
@@ -224,21 +224,21 @@ export default function SearchDropdown({ topic, searchQuery }) {
             setSearchMenuOpen(!searchMenuOpen);
             if (!searchMenuOpen && isAuthenticated) fetchSavedSearches();
           }}
-          className="flex items-center gap-1.5 border border-gray-300 rounded-md pl-3 pr-2 py-1 hover:bg-gray-50 transition-colors"
+          className="flex items-center gap-1.5 border border-faint rounded-md pl-3 pr-2 py-1 hover:bg-fill transition-colors"
         >
-          <span className="text-gray-700 text-sm">{savedSearchName}</span>
-          <ChevronDown className="w-3.5 h-3.5 text-gray-500" />
+          <span className="text-ink-soft text-sm">{savedSearchName}</span>
+          <ChevronDown className="w-3.5 h-3.5 text-muted" />
         </button>
 
         {searchMenuOpen && (
-          <div className="absolute top-full left-0 mt-1 w-56 bg-white rounded-lg shadow-xl border border-gray-200 py-1.5 z-50">
+          <div className="absolute top-full left-0 mt-1 w-56 bg-surface rounded-lg shadow-xl border border-faint py-1.5 z-50">
             {/* Open with submenu */}
             <div
               className="relative group"
               onMouseEnter={() => setOpenSubmenuOpen(true)}
               onMouseLeave={() => setOpenSubmenuOpen(false)}
             >
-              <button className="w-full px-3 py-2 text-left text-gray-700 font-medium hover:bg-gray-100 flex items-center justify-between">
+              <button className="w-full px-3 py-2 text-left text-ink-soft font-medium hover:bg-fill flex items-center justify-between">
                 <span className="flex items-center gap-2">
                   <FolderOpen className="w-4 h-4" />
                   Open
@@ -248,28 +248,28 @@ export default function SearchDropdown({ topic, searchQuery }) {
               
               {openSubmenuOpen && (
                 <div className="absolute left-full top-0 -ml-1 pl-2">
-                  <div className="w-56 bg-white rounded-lg shadow-xl border border-gray-200 py-1.5">
+                  <div className="w-56 bg-surface rounded-lg shadow-xl border border-faint py-1.5">
                     {!isAuthenticated ? (
-                      <p className="px-3 py-2 text-gray-500">Login to view saved searches</p>
+                      <p className="px-3 py-2 text-muted">Login to view saved searches</p>
                     ) : recentSearches.length === 0 ? (
-                      <p className="px-3 py-2 text-gray-500">No saved searches</p>
+                      <p className="px-3 py-2 text-muted">No saved searches</p>
                     ) : (
                       <>
                         {recentSearches.map(search => (
                           <button
                             key={search.id}
                             onClick={() => handleOpenSearch(search)}
-                            className="w-full px-3 py-2 text-left text-gray-700 hover:bg-gray-100 truncate"
+                            className="w-full px-3 py-2 text-left text-ink-soft hover:bg-fill truncate"
                           >
                             {search.name}
                           </button>
                         ))}
                         {savedSearches.length > 0 && (
                           <>
-                            <hr className="my-1.5 border-gray-200" />
+                            <hr className="my-1.5 border-faint" />
                             <button
                               onClick={handleViewAll}
-                              className="w-full px-3 py-2 text-left text-gray-600 font-medium hover:bg-gray-100"
+                              className="w-full px-3 py-2 text-left text-muted font-medium hover:bg-fill"
                             >
                               View all →
                             </button>
@@ -282,7 +282,7 @@ export default function SearchDropdown({ topic, searchQuery }) {
               )}
             </div>
 
-            <hr className="my-1.5 border-gray-200" />
+            <hr className="my-1.5 border-faint" />
 
             {/* Save As */}
             <button
@@ -295,7 +295,7 @@ export default function SearchDropdown({ topic, searchQuery }) {
                 setShowSaveModal(true);
                 setSearchMenuOpen(false);
               }}
-              className="w-full px-3 py-2 text-left text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+              className="w-full px-3 py-2 text-left text-ink-soft hover:bg-fill flex items-center gap-2"
             >
               <Save className="w-4 h-4" />
               Save As...
@@ -311,7 +311,7 @@ export default function SearchDropdown({ topic, searchQuery }) {
                 }
               }}
               disabled={!currentSearchId}
-              className="w-full px-3 py-2 text-left text-gray-700 font-medium hover:bg-gray-100 flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+              className="w-full px-3 py-2 text-left text-ink-soft font-medium hover:bg-fill flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <Pencil className="w-4 h-4" />
               Rename
@@ -321,7 +321,7 @@ export default function SearchDropdown({ topic, searchQuery }) {
             <button
               onClick={handleDeleteSearch}
               disabled={!currentSearchId}
-              className="w-full px-3 py-2 text-left text-red-600 font-medium hover:bg-red-50 flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+              className="w-full px-3 py-2 text-left text-danger font-medium hover:bg-danger-soft flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <Trash2 className="w-4 h-4" />
               Delete

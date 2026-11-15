@@ -672,25 +672,25 @@ const CitationMesh = ({ papers, onClose, onNodeClick, cachedNetwork, onNetworkBu
   }, [isSplitScreen, isFullscreen]);
 
   return (
-    <div className={`fixed bg-white z-50 shadow-2xl flex flex-col transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] overflow-hidden ${
+    <div className={`fixed bg-surface z-50 shadow-2xl flex flex-col transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] overflow-hidden ${
       isFullscreen 
         ? 'inset-0' 
         : isSplitScreen
-          ? 'top-4 bottom-4 left-4 w-[calc(50%-1rem)] rounded-2xl border border-gray-200'
-          : 'top-4 bottom-4 left-4 right-4 rounded-2xl border border-gray-200'
+          ? 'top-4 bottom-4 left-4 w-[calc(50%-1rem)] rounded-2xl border border-faint'
+          : 'top-4 bottom-4 left-4 right-4 rounded-2xl border border-faint'
     }`}>
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-white">
+      <div className="flex items-center justify-between p-4 border-b border-faint bg-surface">
         <div className="flex items-center gap-4">
           <h2 className="text-xl font-semibold text-black">Citation Network</h2>
           {loading && (
-            <div className="flex items-center gap-2 text-sm text-gray-600">
+            <div className="flex items-center gap-2 text-sm text-muted">
               <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-black"></div>
               <span>Building network...</span>
             </div>
           )}
           {elements.length > 0 && (
-            <span className="text-sm text-gray-600">
+            <span className="text-sm text-muted">
               {elements.filter(e => e.data && e.data.id && !e.data.source).length} nodes,{' '}
               {elements.filter(e => e.data && e.data.source).length} edges
               {elements.filter(e => e.data && e.data.source).length === 0 && elements.filter(e => e.data && e.data.id && !e.data.source).length > 1 && (
@@ -702,27 +702,27 @@ const CitationMesh = ({ papers, onClose, onNodeClick, cachedNetwork, onNetworkBu
         <div className="flex items-center gap-2">
           <button
             onClick={() => setIsFullscreen(!isFullscreen)}
-            className="p-2 hover:bg-gray-100 rounded transition-colors"
+            className="p-2 hover:bg-fill rounded transition-colors"
             title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
           >
             {isFullscreen ? <Minimize2 className="w-5 h-5" /> : <Maximize2 className="w-5 h-5" />}
           </button>
           <button
             onClick={onClose}
-            className="p-2 hover:bg-gray-100 rounded transition-colors"
+            className="p-2 hover:bg-fill rounded transition-colors"
           >
-            <X className="w-5 h-5 text-gray-600" />
+            <X className="w-5 h-5 text-muted" />
           </button>
         </div>
       </div>
 
       {/* Toolbar */}
-      <div className="flex items-center justify-between p-3 border-b border-gray-200 bg-slate-50 flex-wrap gap-2">
+      <div className="flex items-center justify-between p-3 border-b border-faint bg-slate-50 flex-wrap gap-2">
         <div className="flex items-center gap-2 flex-wrap">
           <select
             value={layout}
             onChange={(e) => handleLayoutChange(e.target.value)}
-            className="text-sm border border-gray-300 rounded px-3 py-1.5 bg-white"
+            className="text-sm border border-faint rounded px-3 py-1.5 bg-surface"
           >
             {Object.entries(layoutOptions).map(([value, label]) => (
               <option key={value} value={value}>{label}</option>
@@ -736,7 +736,7 @@ const CitationMesh = ({ papers, onClose, onNodeClick, cachedNetwork, onNetworkBu
               onChange={(e) => {
                 setShowOnlyRootNodes(e.target.checked);
               }}
-              className="rounded border-gray-300 cursor-pointer"
+              className="rounded border-faint cursor-pointer"
             />
             <span>Root nodes only</span>
           </label>
@@ -751,7 +751,7 @@ const CitationMesh = ({ papers, onClose, onNodeClick, cachedNetwork, onNetworkBu
                 const val = parseInt(e.target.value) || 0;
                 setMinCitations(val);
               }}
-              className="w-16 text-sm border border-gray-300 rounded px-2 py-1"
+              className="w-16 text-sm border border-faint rounded px-2 py-1"
             />
           </div>
           
@@ -769,35 +769,35 @@ const CitationMesh = ({ papers, onClose, onNodeClick, cachedNetwork, onNetworkBu
         <div className="flex items-center gap-2">
           <button
             onClick={handleZoomIn}
-            className="p-2 hover:bg-gray-200 rounded transition-colors"
+            className="p-2 hover:bg-fill-strong rounded transition-colors"
             title="Zoom in"
           >
             <ZoomIn className="w-4 h-4" />
           </button>
           <button
             onClick={handleZoomOut}
-            className="p-2 hover:bg-gray-200 rounded transition-colors"
+            className="p-2 hover:bg-fill-strong rounded transition-colors"
             title="Zoom out"
           >
             <ZoomOut className="w-4 h-4" />
           </button>
           <button
             onClick={handleReset}
-            className="p-2 hover:bg-gray-200 rounded transition-colors"
+            className="p-2 hover:bg-fill-strong rounded transition-colors"
             title="Reset view"
           >
             <RotateCw className="w-4 h-4" />
           </button>
           <button
             onClick={handleExport}
-            className="p-2 hover:bg-gray-200 rounded transition-colors"
+            className="p-2 hover:bg-fill-strong rounded transition-colors"
             title="Export as PNG"
           >
             <Download className="w-4 h-4" />
           </button>
           <button
             onClick={handleToggleLabels}
-            className="px-3 py-1.5 text-sm border border-gray-300 rounded hover:bg-gray-200 transition-colors"
+            className="px-3 py-1.5 text-sm border border-faint rounded hover:bg-fill-strong transition-colors"
             title={showLabels ? "Hide labels" : "Show labels"}
           >
             {showLabels ? 'Hide Labels' : 'Show Labels'}
@@ -806,11 +806,11 @@ const CitationMesh = ({ papers, onClose, onNodeClick, cachedNetwork, onNetworkBu
       </div>
 
       {/* Graph Container */}
-      <div className="flex-1 relative bg-white">
+      <div className="flex-1 relative bg-surface">
         {error && (
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="text-center p-6">
-              <p className="text-red-600 mb-4">{error}</p>
+              <p className="text-danger mb-4">{error}</p>
               <button
                 onClick={buildNetwork}
                 className="px-4 py-2 bg-black text-white rounded hover:bg-gray-800 transition-colors"
@@ -824,7 +824,7 @@ const CitationMesh = ({ papers, onClose, onNodeClick, cachedNetwork, onNetworkBu
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="text-center">
               <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-black mx-auto mb-4"></div>
-              <p className="text-gray-600">Building citation network...</p>
+              <p className="text-muted">Building citation network...</p>
             </div>
           </div>
         )}
@@ -844,13 +844,13 @@ const CitationMesh = ({ papers, onClose, onNodeClick, cachedNetwork, onNetworkBu
               transform: 'translate(-50%, -100%)',
             }}
           >
-            <div className="bg-white rounded-md shadow-lg border border-gray-200 p-3 max-w-xs">
+            <div className="bg-surface rounded-md shadow-lg border border-faint p-3 max-w-xs">
               <div className={`inline-block px-2 py-0.5 rounded text-[10px] font-medium mb-2 ${
                 tooltip.content.isRoot 
-                  ? 'bg-blue-50 text-blue-700 border border-blue-200' 
+                  ? 'bg-info-soft text-blue-700 border border-info-soft' 
                   : tooltip.content.isBridge
                     ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                    : 'bg-gray-50 text-gray-700 border border-gray-200'
+                    : 'bg-fill text-ink-soft border border-faint'
               }`}>
                 {tooltip.content.isRoot ? 'Search Result' : tooltip.content.isBridge ? 'Bridge Paper' : 'Citation'}
               </div>
@@ -859,42 +859,42 @@ const CitationMesh = ({ papers, onClose, onNodeClick, cachedNetwork, onNetworkBu
                   #{tooltip.content.nodeIndex}
                 </div>
               )}
-              <h3 className="font-semibold text-xs text-gray-900 mb-2 line-clamp-2 leading-tight">
+              <h3 className="font-semibold text-xs text-ink mb-2 line-clamp-2 leading-tight">
                 {tooltip.content.title}
               </h3>
-              <div className="space-y-1 text-[11px] text-gray-600">
+              <div className="space-y-1 text-[11px] text-muted">
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-gray-500">Year</span>
-                  <span className="font-medium text-gray-900">{tooltip.content.year}</span>
+                  <span className="text-muted">Year</span>
+                  <span className="font-medium text-ink">{tooltip.content.year}</span>
                 </div>
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-gray-500">Citations</span>
-                  <span className="font-medium text-gray-900">{tooltip.content.citations}</span>
+                  <span className="text-muted">Citations</span>
+                  <span className="font-medium text-ink">{tooltip.content.citations}</span>
                 </div>
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-gray-500">Influence Score</span>
-                  <span className="font-medium text-blue-600">{(tooltip.content.influenceScore || 0).toFixed(2)}</span>
+                  <span className="text-muted">Influence Score</span>
+                  <span className="font-medium text-info">{(tooltip.content.influenceScore || 0).toFixed(2)}</span>
                 </div>
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-gray-500">PageRank</span>
-                  <span className="font-medium text-purple-600">{(tooltip.content.pageRankScore || 0).toFixed(2)}</span>
+                  <span className="text-muted">PageRank</span>
+                  <span className="font-medium text-accent">{(tooltip.content.pageRankScore || 0).toFixed(2)}</span>
                 </div>
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-gray-500">Velocity</span>
+                  <span className="text-muted">Velocity</span>
                   <span className="font-medium text-green-600">{tooltip.content.citationVelocity}/yr</span>
                 </div>
-                <div className="flex items-start gap-2 pt-1 mt-1 border-t border-gray-100">
-                  <span className="text-gray-500 w-12 flex-shrink-0">Authors</span>
-                  <span className="line-clamp-1 text-gray-900">{tooltip.content.authors}</span>
+                <div className="flex items-start gap-2 pt-1 mt-1 border-t border-faint">
+                  <span className="text-muted w-12 flex-shrink-0">Authors</span>
+                  <span className="line-clamp-1 text-ink">{tooltip.content.authors}</span>
                 </div>
                 {tooltip.content.venue && tooltip.content.venue !== 'N/A' && (
                   <div className="flex items-start gap-2">
-                    <span className="text-gray-500 w-12 flex-shrink-0">Venue</span>
-                    <span className="line-clamp-1 text-gray-900">{tooltip.content.venue}</span>
+                    <span className="text-muted w-12 flex-shrink-0">Venue</span>
+                    <span className="line-clamp-1 text-ink">{tooltip.content.venue}</span>
                   </div>
                 )}
               </div>
-              <div className="mt-2 pt-2 border-t border-gray-100 text-[10px] text-gray-400">
+              <div className="mt-2 pt-2 border-t border-faint text-[10px] text-muted">
                 Click node for details
               </div>
             </div>
@@ -904,8 +904,8 @@ const CitationMesh = ({ papers, onClose, onNodeClick, cachedNetwork, onNetworkBu
         {!loading && !error && elements.length === 0 && (
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="text-center p-6">
-              <p className="text-gray-600 mb-4">No citation connections found</p>
-              <p className="text-sm text-gray-500">
+              <p className="text-muted mb-4">No citation connections found</p>
+              <p className="text-sm text-muted">
                 The papers in your search don't have citation relationships in the current dataset.
               </p>
             </div>
@@ -914,60 +914,60 @@ const CitationMesh = ({ papers, onClose, onNodeClick, cachedNetwork, onNetworkBu
         
         {/* Metrics Legend */}
         {!loading && !error && elements.length > 0 && !isSplitScreen && (
-          <div className="absolute bottom-4 left-4 bg-white/95 backdrop-blur-sm border border-gray-200 rounded-md shadow-md p-3 z-10 w-72 text-xs pointer-events-auto">
-            <h4 className="font-semibold text-gray-800 mb-2 flex items-center gap-1.5">
+          <div className="absolute bottom-4 left-4 bg-surface/95 backdrop-blur-sm border border-faint rounded-md shadow-md p-3 z-10 w-72 text-xs pointer-events-auto">
+            <h4 className="font-semibold text-ink mb-2 flex items-center gap-1.5">
               <Info className="w-4 h-4 text-blue-500" /> Graph Intelligence
             </h4>
             {/* Node Types */}
-            <div className="mb-2 pb-2 border-b border-gray-100">
-              <div className="text-[10px] font-medium text-gray-500 uppercase tracking-wider mb-1.5">Node Types</div>
+            <div className="mb-2 pb-2 border-b border-faint">
+              <div className="text-[10px] font-medium text-muted uppercase tracking-wider mb-1.5">Node Types</div>
               <div className="flex flex-col gap-1.5">
                 <div className="flex items-start gap-2">
-                  <div className="w-3 h-3 rounded-full bg-blue-500 border border-blue-600 flex-shrink-0 mt-0.5"></div>
-                  <span className="text-gray-700 leading-tight"><span className="font-medium text-gray-900">Root:</span> Direct search results.</span>
+                  <div className="w-3 h-3 rounded-full bg-blue-500 border border-info flex-shrink-0 mt-0.5"></div>
+                  <span className="text-ink-soft leading-tight"><span className="font-medium text-ink">Root:</span> Direct search results.</span>
                 </div>
                 <div className="flex items-start gap-2">
                   <div className="w-3 h-3 rotate-45 bg-amber-400 border border-amber-500 flex-shrink-0 mt-0.5"></div>
-                  <span className="text-gray-700 leading-tight"><span className="font-medium text-gray-900">Bridge:</span> Key papers connecting multiple Roots.</span>
+                  <span className="text-ink-soft leading-tight"><span className="font-medium text-ink">Bridge:</span> Key papers connecting multiple Roots.</span>
                 </div>
                 <div className="flex items-start gap-2">
                   <div className="w-3 h-3 rounded-full bg-slate-400 border border-slate-500 flex-shrink-0 mt-0.5"></div>
-                  <span className="text-gray-700 leading-tight"><span className="font-medium text-gray-900">Citation:</span> Connected to only one Root.</span>
+                  <span className="text-ink-soft leading-tight"><span className="font-medium text-ink">Citation:</span> Connected to only one Root.</span>
                 </div>
               </div>
             </div>
             {/* Edge Types */}
-            <div className="mb-2 pb-2 border-b border-gray-100">
-              <div className="text-[10px] font-medium text-gray-500 uppercase tracking-wider mb-1.5">Edge Types</div>
+            <div className="mb-2 pb-2 border-b border-faint">
+              <div className="text-[10px] font-medium text-muted uppercase tracking-wider mb-1.5">Edge Types</div>
               <div className="flex flex-wrap gap-3">
                 <div className="flex items-center gap-1">
                   <div className="w-5 h-0.5 bg-slate-300"></div>
-                  <span className="text-gray-700">Cites</span>
+                  <span className="text-ink-soft">Cites</span>
                 </div>
                 <div className="flex items-center gap-1">
                   <div className="w-5 h-0.5 border-t-2 border-dashed border-indigo-300"></div>
-                  <span className="text-gray-700">Cited by</span>
+                  <span className="text-ink-soft">Cited by</span>
                 </div>
               </div>
             </div>
             {/* Metrics */}
-            <div className="space-y-2 text-gray-600">
+            <div className="space-y-2 text-muted">
               <div className="flex items-start gap-1.5">
                 <div className="w-2 h-2 rounded-full bg-purple-500 mt-1 flex-shrink-0"></div>
                 <div>
-                  <span className="font-medium text-gray-900">PageRank:</span> Prestige via highly-cited citations. Controls <span className="font-medium text-purple-600">node color</span>.
+                  <span className="font-medium text-ink">PageRank:</span> Prestige via highly-cited citations. Controls <span className="font-medium text-accent">node color</span>.
                 </div>
               </div>
               <div className="flex items-start gap-1.5">
                 <div className="w-2 h-2 rounded-full bg-blue-500 mt-1 flex-shrink-0"></div>
                 <div>
-                  <span className="font-medium text-gray-900">Influence:</span> In-degree centrality in this graph. Controls <span className="font-medium text-blue-600">node size</span>.
+                  <span className="font-medium text-ink">Influence:</span> In-degree centrality in this graph. Controls <span className="font-medium text-info">node size</span>.
                 </div>
               </div>
               <div className="flex items-start gap-1.5">
                 <div className="w-2 h-2 rounded-full bg-green-500 mt-1 flex-shrink-0"></div>
                 <div>
-                  <span className="font-medium text-gray-900">Velocity:</span> Avg. new citations per year.
+                  <span className="font-medium text-ink">Velocity:</span> Avg. new citations per year.
                 </div>
               </div>
             </div>
