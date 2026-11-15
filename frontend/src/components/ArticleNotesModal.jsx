@@ -37,16 +37,16 @@ const ArticleNotesModal = ({ isOpen, onClose, paper, notes: initialNotes, onSave
       onClick={handleClose}
     >
       <div
-        className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col"
+        className="bg-surface rounded-lg shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-gray-200">
+        <div className="flex items-center justify-between p-4 border-b border-faint">
           <div className="flex items-center gap-2">
-            <FileText className="w-5 h-5 text-gray-600" />
+            <FileText className="w-5 h-5 text-muted" />
             <h2 className="text-lg font-semibold text-black">Notes</h2>
             {paper && (
-              <span className="text-sm text-gray-500 truncate max-w-md">
+              <span className="text-sm text-muted truncate max-w-md">
                 {paper.title}
               </span>
             )}
@@ -54,9 +54,9 @@ const ArticleNotesModal = ({ isOpen, onClose, paper, notes: initialNotes, onSave
           <button
             onClick={handleClose}
             disabled={isSaving}
-            className="p-1.5 hover:bg-gray-100 rounded transition-colors disabled:opacity-50"
+            className="p-1.5 hover:bg-fill rounded transition-colors disabled:opacity-50"
           >
-            <X className="w-5 h-5 text-gray-600" />
+            <X className="w-5 h-5 text-muted" />
           </button>
         </div>
 
@@ -66,21 +66,21 @@ const ArticleNotesModal = ({ isOpen, onClose, paper, notes: initialNotes, onSave
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             placeholder="Add your notes about this article..."
-            className="w-full h-64 p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent resize-none text-sm"
+            className="w-full h-64 p-3 border border-faint rounded-lg focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent resize-none text-sm"
             disabled={isSaving}
             autoFocus
           />
-          <p className="text-xs text-gray-500 mt-2">
+          <p className="text-xs text-muted mt-2">
             {notes.length} characters
           </p>
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-2 p-4 border-t border-gray-200">
+        <div className="flex items-center justify-end gap-2 p-4 border-t border-faint">
           <button
             onClick={handleClose}
             disabled={isSaving}
-            className="px-4 py-2 text-sm border border-gray-300 rounded hover:bg-gray-50 transition-colors disabled:opacity-50"
+            className="px-4 py-2 text-sm border border-faint rounded hover:bg-fill transition-colors disabled:opacity-50"
           >
             Cancel
           </button>

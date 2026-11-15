@@ -30,6 +30,48 @@ To self-host it, see [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
 ---
 
+## Interface
+
+The interface was fully redesigned in November 2026, taking cues from
+Perplexity, Elicit, NotebookLM, Linear and Raycast. The direction is
+"warm paper by day, focused dark by night, keyboard-first":
+
+- **App shell** - a slim 240px sidebar (Search, PRISMA Review, Citation
+  Graph, My Library, Saved Searches, Pricing) with a live local-model
+  and $0.00 cost footer, plus a slim glassy top bar. On mobile the
+  sidebar becomes a slide-over drawer.
+- **Dark mode** - a real dark theme built on semantic color tokens, not
+  an inverted filter. The toggle persists in localStorage and defaults
+  to the OS preference. Teal is the single accent in both themes
+  (`#0F766E` light, `#2DD4BF` dark).
+- **Command palette** - press Ctrl/Cmd+K anywhere for grouped actions,
+  recent searches and live search suggestions, with full keyboard
+  navigation.
+- **Question-first home** - a centered search hero with a serif
+  headline (Fraunces) and honest stats underneath. No unmeasured
+  marketing numbers: the home page shows only numbers the project can
+  stand behind (10 free sources, 8 AI workflows, $0.00 total cost,
+  156 tests passing).
+- **Paper cards** - soft white rounded cards with a source pill,
+  year/venue/authors meta, citation count and a teal selection ring.
+  Skeleton loaders replace spinners while results load.
+- **Logo** - a new mark in `frontend/public/logo.svg`: three nodes
+  joined by one flowing curve inside a teal rounded square, the flow
+  from question to evidence to draft. It also serves as the favicon.
+
+The full design brief, palette, type scale and per-page changes are in
+[docs/UI_REVAMP.md](docs/UI_REVAMP.md).
+
+What each main view looks like: the home page is a question box with
+honest stats and a feature grid; search results are scannable paper
+cards with a filter panel and a detail slide-over; the chat view shows
+answers with source chips; Deep Review and PRISMA are form cards with
+progress states and evidence-first result cards; My Library shows
+library stats, Zotero import and the knowledge graph; the model picker
+and usage panel show the active local model and the $0.00 cost readout.
+
+---
+
 ## Problem Statement
 
 Modern research workflows are fragmented across multiple platforms such as Google Scholar, PubMed, and arXiv. Researchers face challenges including:
@@ -83,6 +125,32 @@ ReSearch Flow provides an **end-to-end research assistant** that:
 - Save articles  
 - Manage search history  
 - Add personal notes  
+- Private knowledge graph over saved papers and notes, with free
+  Zotero sync and locally computed new-paper alerts  
+
+### Deep Review and verifiable citations
+- Deep Review: a multi-step synthesis that runs sub-queries across
+  sources, extracts per-paper evidence and returns a cited answer
+- Sentence-level citation verification (embedding similarity) and
+  retraction, open-access, peer-reviewed and preprint badges per paper  
+
+### Systematic review (PRISMA)
+- Free PRISMA flow: screening with include/exclude reasons, dual-pass
+  adjudication, auto PRISMA diagram data and a screening-accuracy
+  report (AI screening is a first pass, human verification is required)  
+
+### Citation graph and gap finder
+- Citation and similarity maps from free OpenAlex and Semantic Scholar
+  data, under-cited clusters and unanswered-question detection  
+
+### Transparent model picker and cost meter
+- Pick the local Ollama model from the UI; the usage panel shows the
+  cost of every run and the cloud price avoided. Total spent is always
+  $0.00  
+
+### Honest drafting
+- Drafts with per-sentence support flags and a pre-export retraction
+  check that blocks export when a cited paper is retracted  
 
 ### Performance Optimization
 - Background caching (Supabase)  
@@ -188,8 +256,11 @@ From `backend/`:
 python -m unittest discover -s src/app/tests -v
 ```
 
-They cover the dedup helpers and the paper-source parsing functions
-with fixtures only: no network calls, no Ollama, no live APIs.
+156 tests, covering dedup helpers, paper-source parsing, the new
+workflows (Deep Review, citations, PRISMA, citation graph, knowledge
+graph, model picker, cost meter, honest drafting) and the production
+hardening (JWT auth, rate limiting, readiness) with fixtures and
+mocks: no network calls, no Ollama, no live APIs.
 
 ---
 
@@ -237,20 +308,20 @@ honest but slow: a structured summary took ~95s, a RAG answer
 - Supabase Auth (JWT-based)  
 - Google OAuth support  
 - The `/saved-searches` page redirects to login when there is no
-  session; search and results are intentionally public. The backend
-  has no user-scoped auth yet: write endpoints call Supabase
-  directly from the frontend, and only the destructive
-  `DELETE /chat/history` route accepts an optional API key
-  (`BACKEND_API_KEY`). A proper backend Supabase-JWT check is
-  still open work.  
+  session; search and results are intentionally public. Chat
+  ask/history and draft generation verify the Supabase JWT on the
+  backend (HS256 with `SUPABASE_JWT_SECRET`, Auth API fallback),
+  chat sessions are scoped per user, and per-IP rate limiting
+  applies (summarize/ask 10/min, chat 20/min, draft 2/hour).  
 
 ---
 
 ## Testing
 
-- Backend unit tests: 24 stdlib `unittest` tests covering dedup
-  helpers and paper-source parsing with fixtures only (no network,
-  no Ollama). Run them from `backend/` with
+- Backend unit tests: 156 stdlib `unittest` tests covering dedup
+  helpers, paper-source parsing, the AI workflows and the production
+  hardening, with fixtures and mocks only (no network, no Ollama).
+  Run them from `backend/` with
   `python -m unittest discover -s src/app/tests -v`.
 - A fixed 10-question live evaluation against the real backend and
   local Ollama is recorded in `docs/evaluation.md`.
@@ -268,7 +339,6 @@ honest but slow: a structured summary took ~95s, a RAG answer
 
 ## Future Work
 
-- Backend Supabase-JWT auth (scope chat sessions to the user)  
 - Larger evaluation set and a GPU run for latency comparison  
 - Multi-modal RAG (text + figures, once a vision model is configured)  
 - Chrome extension  

@@ -24,19 +24,37 @@ async function getAuthHeaders() {
  * Ask the backend whether the local AI model is reachable.
  * Used for the "AI unavailable" banner instead of letting
  * summarize / chat / draft hang or fail silently.
+ *
+ * Retries with backoff: on the results page this check used to run
+ * once on mount with a 5s timeout, racing ~10 parallel source
+ * searches against Chrome's 6-connections-per-host limit, so /ready
+ * timed out and the banner stuck on even though Ollama was up.
+ * Three attempts with a longer timeout and growing gaps mean a
+ * transient queueing delay no longer reads as "AI is down".
  */
 export async function checkAiReady() {
-  try {
-    const base = API_BASE_URL.replace(/\/api\/v1$/, '');
-    const response = await fetch(`${base}/ready`, {
-      signal: AbortSignal.timeout(5000),
-    });
-    if (!response.ok) return false;
-    const data = await response.json();
-    return data.ollama === true;
-  } catch {
-    return false;
+  const base = API_BASE_URL.replace(/\/api\/v1$/, '');
+  const delays = [0, 700, 1800];
+  for (let attempt = 0; attempt < delays.length; attempt += 1) {
+    if (delays[attempt] > 0) {
+      await new Promise((resolve) => setTimeout(resolve, delays[attempt]));
+    }
+    try {
+      const response = await fetch(`${base}/ready`, {
+        signal: AbortSignal.timeout(8000),
+      });
+      if (response.ok) {
+        const data = await response.json();
+        return data.ollama === true;
+      }
+      // A 503 from /ready is a real "degraded" answer, not a race:
+      // stop retrying and report down.
+      if (response.status === 503) return false;
+    } catch {
+      // Network error or timeout: retry unless this was the last try.
+    }
   }
+  return false;
 }
 
 class APIError extends Error {

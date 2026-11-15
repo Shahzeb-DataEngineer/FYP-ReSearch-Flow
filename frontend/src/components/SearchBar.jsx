@@ -148,8 +148,7 @@ const SearchBar = ({ onSearch, initialValue = '', placeholder = "Search topics, 
     return (
         <div className={`relative w-full ${size === "small" ? "max-w-2xl" : "max-w-4xl"} z-50`}>
             <div
-                className={`relative flex items-center bg-white border-2 rounded-lg transition-all duration-300 ${isFocused ? 'border-black shadow-lg' : 'border-gray-300'
-                    }`}
+                className="relative flex items-center bg-surface border border-faint rounded-full transition-all duration-300 focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/20 focus-within:shadow-md shadow-sm"
             >
                 <input
                     ref={inputRef}
@@ -159,28 +158,33 @@ const SearchBar = ({ onSearch, initialValue = '', placeholder = "Search topics, 
                     onFocus={() => setIsFocused(true)}
                     onKeyDown={handleKeyDown}
                     placeholder={placeholder}
-                    className={`w-full ${containerPadding} bg-transparent text-black placeholder-gray-400 focus:outline-none ${fontSize}`}
+                    className={`w-full ${containerPadding} bg-transparent text-ink placeholder-muted focus:outline-none ${fontSize}`}
                 />
                 {searchValue && (
                     <button
                         onClick={() => { setSearchValue(''); inputRef.current?.focus(); }}
-                        className="p-2 text-gray-400 hover:text-gray-600 transition-colors"
+                        className="p-2 text-muted hover:text-ink transition-colors"
                     >
                         <X className="w-5 h-5" />
                     </button>
                 )}
+                {!searchValue && size !== "small" && (
+                    <kbd className="hidden md:inline-flex items-center gap-0.5 mr-1 px-1.5 py-0.5 text-[11px] font-medium text-muted bg-fill border border-faint rounded-md shrink-0">
+                        ⌘K
+                    </kbd>
+                )}
                 <button
                     onClick={() => handleSearch()}
                     disabled={!searchValue.trim()}
-                    className="mr-2 p-2 bg-black rounded-lg hover:bg-gray-800 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                    className="mr-2 p-2 bg-accent rounded-full hover:bg-accent-hover transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                 >
                     <Search className={`${iconSize} text-white`} />
                 </button>
             </div>
 
             {isNLP && size !== "small" && (
-                <div className="absolute -bottom-7 left-2 flex items-center gap-1.5 text-xs text-gray-500">
-                    <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                <div className="absolute -bottom-7 left-2 flex items-center gap-1.5 text-xs text-muted">
+                    <Sparkles className="w-3.5 h-3.5 text-accent" />
                     <span>Semantic search — smart keyword extraction active</span>
                 </div>
             )}
@@ -188,35 +192,35 @@ const SearchBar = ({ onSearch, initialValue = '', placeholder = "Search topics, 
             {showDropdown && (
                 <div
                     ref={dropdownRef}
-                    className="absolute top-full left-0 right-0 mt-2 bg-white rounded-lg border-2 border-gray-200 shadow-xl overflow-hidden z-50"
+                    className="absolute top-full left-0 right-0 mt-2 bg-surface rounded-2xl border border-faint shadow-xl overflow-hidden z-50"
                     style={{ animation: 'fadeSlideDown 0.15s ease-out' }}
                 >
                     {/* ── Tab Bar ── */}
-                    <div className="flex border-b border-gray-200 bg-gray-50">
+                    <div className="flex border-b border-faint bg-fill">
                         <button
                             className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium transition-all duration-200 relative ${activeTab === 'suggestions'
-                                ? 'text-black'
-                                : 'text-gray-400 hover:text-gray-600'
+                                ? 'text-accent'
+                                : 'text-muted hover:text-ink'
                                 }`}
                             onClick={() => { setActiveTab('suggestions'); setHighlightedIndex(-1); }}
                         >
                             <Search className="w-3.5 h-3.5" />
                             <span>Suggestions</span>
                             {activeTab === 'suggestions' && (
-                                <span className="absolute bottom-0 left-4 right-4 h-0.5 bg-black rounded-full" style={{ animation: 'tabSlide 0.2s ease-out' }} />
+                                <span className="absolute bottom-0 left-4 right-4 h-0.5 bg-accent rounded-full" style={{ animation: 'tabSlide 0.2s ease-out' }} />
                             )}
                         </button>
                         <button
                             className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium transition-all duration-200 relative ${activeTab === 'trending'
-                                ? 'text-black'
-                                : 'text-gray-400 hover:text-gray-600'
+                                ? 'text-accent'
+                                : 'text-muted hover:text-ink'
                                 }`}
                             onClick={() => { setActiveTab('trending'); setHighlightedIndex(-1); }}
                         >
                             <Flame className="w-3.5 h-3.5" />
                             <span>Trending</span>
                             {activeTab === 'trending' && (
-                                <span className="absolute bottom-0 left-4 right-4 h-0.5 bg-black rounded-full" style={{ animation: 'tabSlide 0.2s ease-out' }} />
+                                <span className="absolute bottom-0 left-4 right-4 h-0.5 bg-accent rounded-full" style={{ animation: 'tabSlide 0.2s ease-out' }} />
                             )}
                         </button>
                     </div>
@@ -232,10 +236,10 @@ const SearchBar = ({ onSearch, initialValue = '', placeholder = "Search topics, 
                                         {/* Recent Searches section */}
                                         {suggestions.some(s => s.type === 'history') && (
                                             <div className="flex items-center justify-between px-4 pt-2 pb-1">
-                                                <p className="text-xs font-medium text-gray-400 uppercase tracking-wider">Recent Searches</p>
+                                                <p className="text-xs font-medium text-muted uppercase tracking-wider">Recent Searches</p>
                                                 <button
                                                     onClick={(e) => { e.stopPropagation(); clearHistory(); }}
-                                                    className="text-xs text-gray-400 hover:text-red-500 transition-colors"
+                                                    className="text-xs text-muted hover:text-danger transition-colors"
                                                 >
                                                     Clear all
                                                 </button>
@@ -247,13 +251,13 @@ const SearchBar = ({ onSearch, initialValue = '', placeholder = "Search topics, 
                                             return (
                                                 <button
                                                     key={`history-${suggestion.id || idx}`}
-                                                    className={`w-full text-left px-4 py-2.5 flex items-center gap-3 transition-colors ${highlightedIndex === globalIdx ? 'bg-gray-100' : 'hover:bg-gray-50'
+                                                    className={`w-full text-left px-4 py-2.5 flex items-center gap-3 transition-colors ${highlightedIndex === globalIdx ? 'bg-accent-tint' : 'hover:bg-fill'
                                                         }`}
                                                     onClick={() => handleSuggestionClick(suggestion)}
                                                     onMouseEnter={() => setHighlightedIndex(globalIdx)}
                                                 >
-                                                    <Clock className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                                                    <span className="text-gray-800 truncate">{suggestion.text}</span>
+                                                    <Clock className="w-4 h-4 text-muted flex-shrink-0" />
+                                                    <span className="text-ink truncate">{suggestion.text}</span>
                                                 </button>
                                             );
                                         })}
@@ -261,7 +265,7 @@ const SearchBar = ({ onSearch, initialValue = '', placeholder = "Search topics, 
                                         {/* Autocomplete Matches section */}
                                         {suggestions.some(s => s.type === 'suggestion') && (
                                             <div className="px-4 pt-3 pb-1">
-                                                <p className="text-xs font-medium text-gray-400 uppercase tracking-wider">Suggested Topics</p>
+                                                <p className="text-xs font-medium text-muted uppercase tracking-wider">Suggested Topics</p>
                                             </div>
                                         )}
 
@@ -270,16 +274,16 @@ const SearchBar = ({ onSearch, initialValue = '', placeholder = "Search topics, 
                                             return (
                                                 <button
                                                     key={`suggestion-${idx}`}
-                                                    className={`w-full text-left px-4 py-2.5 flex items-center gap-3 transition-colors ${highlightedIndex === globalIdx ? 'bg-gray-100' : 'hover:bg-gray-50'
+                                                    className={`w-full text-left px-4 py-2.5 flex items-center gap-3 transition-colors ${highlightedIndex === globalIdx ? 'bg-accent-tint' : 'hover:bg-fill'
                                                         }`}
                                                     onClick={() => handleSuggestionClick(suggestion)}
                                                     onMouseEnter={() => setHighlightedIndex(globalIdx)}
                                                 >
-                                                    <TrendingUp className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                                                    <TrendingUp className="w-4 h-4 text-accent flex-shrink-0" />
                                                     <div className="flex flex-col overflow-hidden">
-                                                        <span className="text-gray-800 truncate">{suggestion.text}</span>
+                                                        <span className="text-ink truncate">{suggestion.text}</span>
                                                         {suggestion.hint && (
-                                                            <span className="text-[10px] text-gray-400 uppercase tracking-tight">{suggestion.hint}</span>
+                                                            <span className="text-[10px] text-muted uppercase tracking-tight">{suggestion.hint}</span>
                                                         )}
                                                     </div>
                                                 </button>
@@ -287,7 +291,7 @@ const SearchBar = ({ onSearch, initialValue = '', placeholder = "Search topics, 
                                         })}
                                     </>
                                 ) : (
-                                    <div className="px-4 py-6 text-center text-sm text-gray-400">
+                                    <div className="px-4 py-6 text-center text-sm text-muted">
                                         Type to search for research topics...
                                     </div>
                                 )}
@@ -298,7 +302,7 @@ const SearchBar = ({ onSearch, initialValue = '', placeholder = "Search topics, 
                         {activeTab === 'trending' && (
                             <div className="py-1">
                                 {trendingLoading ? (
-                                    <div className="px-4 py-8 flex flex-col items-center gap-2 text-gray-400">
+                                    <div className="px-4 py-8 flex flex-col items-center gap-2 text-muted">
                                         <Loader2 className="w-5 h-5 animate-spin" />
                                         <span className="text-sm">Loading trending topics...</span>
                                     </div>
@@ -307,7 +311,7 @@ const SearchBar = ({ onSearch, initialValue = '', placeholder = "Search topics, 
                                         {/* Trending Topics section */}
                                         {trendingTopics.some(t => t.type === 'trending_topic') && (
                                             <div className="px-4 pt-2 pb-1">
-                                                <p className="text-xs font-medium text-gray-400 uppercase tracking-wider">
+                                                <p className="text-xs font-medium text-muted uppercase tracking-wider">
                                                     {searchValue.trim() ? `Trending in "${searchValue.trim()}"` : 'Trending Research Topics'}
                                                 </p>
                                             </div>
@@ -316,16 +320,16 @@ const SearchBar = ({ onSearch, initialValue = '', placeholder = "Search topics, 
                                         {trendingTopics.filter(t => t.type === 'trending_topic').map((item, idx) => (
                                             <button
                                                 key={`trending-${idx}`}
-                                                className={`w-full text-left px-4 py-2.5 flex items-center gap-3 transition-colors ${highlightedIndex === idx ? 'bg-orange-50' : 'hover:bg-gray-50'
+                                                className={`w-full text-left px-4 py-2.5 flex items-center gap-3 transition-colors ${highlightedIndex === idx ? 'bg-warn-bg' : 'hover:bg-fill'
                                                     }`}
                                                 onClick={() => handleSuggestionClick(item)}
                                                 onMouseEnter={() => setHighlightedIndex(idx)}
                                             >
-                                                <Flame className="w-4 h-4 text-orange-500 flex-shrink-0" />
+                                                <Flame className="w-4 h-4 text-warn flex-shrink-0" />
                                                 <div className="flex flex-col overflow-hidden">
-                                                    <span className="text-gray-800 truncate">{item.text}</span>
+                                                    <span className="text-ink truncate">{item.text}</span>
                                                     {item.hint && (
-                                                        <span className="text-[10px] text-orange-400 tracking-tight">{item.hint}</span>
+                                                        <span className="text-[10px] text-warn tracking-tight">{item.hint}</span>
                                                     )}
                                                 </div>
                                             </button>
@@ -334,7 +338,7 @@ const SearchBar = ({ onSearch, initialValue = '', placeholder = "Search topics, 
                                         {/* Hot Papers section */}
                                         {trendingTopics.some(t => t.type === 'hot_paper') && (
                                             <div className="px-4 pt-3 pb-1">
-                                                <p className="text-xs font-medium text-gray-400 uppercase tracking-wider">
+                                                <p className="text-xs font-medium text-muted uppercase tracking-wider">
                                                     {searchValue.trim() ? `Most Cited — "${searchValue.trim()}"` : 'Most Cited This Month'}
                                                 </p>
                                             </div>
@@ -345,16 +349,16 @@ const SearchBar = ({ onSearch, initialValue = '', placeholder = "Search topics, 
                                             return (
                                                 <button
                                                     key={`hot-${idx}`}
-                                                    className={`w-full text-left px-4 py-2.5 flex items-center gap-3 transition-colors ${highlightedIndex === globalIdx ? 'bg-emerald-50' : 'hover:bg-gray-50'
+                                                    className={`w-full text-left px-4 py-2.5 flex items-center gap-3 transition-colors ${highlightedIndex === globalIdx ? 'bg-accent-tint' : 'hover:bg-fill'
                                                         }`}
                                                     onClick={() => handleSuggestionClick(item)}
                                                     onMouseEnter={() => setHighlightedIndex(globalIdx)}
                                                 >
-                                                    <TrendingUp className="w-4 h-4 text-emerald-500 flex-shrink-0" />
+                                                    <TrendingUp className="w-4 h-4 text-accent flex-shrink-0" />
                                                     <div className="flex flex-col overflow-hidden">
-                                                        <span className="text-gray-800 truncate text-sm">{item.text}</span>
+                                                        <span className="text-ink truncate text-sm">{item.text}</span>
                                                         {item.hint && (
-                                                            <span className="text-[10px] text-emerald-500 tracking-tight">{item.hint}</span>
+                                                            <span className="text-[10px] text-accent tracking-tight">{item.hint}</span>
                                                         )}
                                                     </div>
                                                 </button>
@@ -362,14 +366,14 @@ const SearchBar = ({ onSearch, initialValue = '', placeholder = "Search topics, 
                                         })}
                                     </>
                                 ) : (
-                                    <div className="px-4 py-6 text-center text-sm text-gray-400">
+                                    <div className="px-4 py-6 text-center text-sm text-muted">
                                         Unable to load trending topics. Please try again.
                                     </div>
                                 )}
 
                                 {/* Source attribution */}
-                                <div className="px-4 py-2 border-t border-gray-100 mt-1">
-                                    <p className="text-[10px] text-gray-300 text-center">
+                                <div className="px-4 py-2 border-t border-faint mt-1">
+                                    <p className="text-[10px] text-muted text-center">
                                         Powered by OpenAlex — open academic data
                                     </p>
                                 </div>

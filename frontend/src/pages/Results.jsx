@@ -52,38 +52,38 @@ const PaperListItem = ({ paper, isSelected, onClick }) => {
   const abstractPreview = abstract.length > 200 ? abstract.substring(0, 200) + '...' : abstract;
 
   return (
-    <div className={`border-b border-gray-200 ${isSelected ? 'bg-gray-100' : 'bg-white'}`}>
+    <div className={`bg-surface rounded-2xl border ${isSelected ? 'border-accent ring-1 ring-accent/30 shadow-sm' : 'border-faint'} hover:shadow-md hover:border-accent/40 transition-all`}>
       <div
         onClick={onClick}
-        className={`p-4 cursor-pointer hover:bg-gray-50 transition-colors`}
+        className={`p-5 cursor-pointer`}
       >
-        <h3 className="text-base font-semibold text-black mb-1.5 line-clamp-2 hover:text-gray-700 transition-colors">
+        <h3 className="text-[17px] font-semibold text-ink mb-1.5 line-clamp-2 hover:text-accent transition-colors">
           {paper.title || 'Untitled Paper'}
         </h3>
 
-        <div className="text-sm text-gray-600 mb-2">
-          {isOpenAlex && <span className="font-mono text-xs bg-amber-100 px-1.5 py-0.5 rounded text-amber-800 mr-1">OpenAlex</span>}
-          {isArxiv && <span className="font-mono text-xs bg-gray-100 px-1.5 py-0.5 rounded mr-1">{arxivId ? `arXiv:${arxivId}` : 'arXiv'}</span>}
-          {isCore && <span className="font-mono text-xs bg-blue-100 px-1.5 py-0.5 rounded text-blue-800 mr-1">CORE</span>}
-          {isPmc && <span className="font-mono text-xs bg-green-100 px-1.5 py-0.5 rounded text-green-800 mr-1">{pmcId ? `PMC:${pmcId}` : 'PMC'}</span>}
-          {isSemanticScholar && <span className="font-mono text-xs bg-purple-100 px-1.5 py-0.5 rounded text-purple-800 mr-1">Semantic Scholar</span>}
-          {isCrossref && <span className="font-mono text-xs bg-teal-100 px-1.5 py-0.5 rounded text-teal-800 mr-1">Crossref</span>}
-          {isEuropePmc && <span className="font-mono text-xs bg-pink-100 px-1.5 py-0.5 rounded text-pink-800 mr-1">Europe PMC</span>}
-          {isPubmed && <span className="font-mono text-xs bg-cyan-100 px-1.5 py-0.5 rounded text-cyan-800 mr-1">PubMed</span>}
-          {isDoaj && <span className="font-mono text-xs bg-orange-100 px-1.5 py-0.5 rounded text-orange-800 mr-1">DOAJ</span>}
-          {isUnpaywall && <span className="font-mono text-xs bg-lime-100 px-1.5 py-0.5 rounded text-lime-800 mr-1">Unpaywall</span>}
+        <div className="text-sm text-muted mb-2 flex flex-wrap items-center gap-x-1 gap-y-1">
+          {isOpenAlex && <span className="font-mono text-xs bg-amber-100 px-2 py-0.5 rounded-full text-amber-800 mr-1">OpenAlex</span>}
+          {isArxiv && <span className="font-mono text-xs bg-fill px-2 py-0.5 rounded-full mr-1">{arxivId ? `arXiv:${arxivId}` : 'arXiv'}</span>}
+          {isCore && <span className="font-mono text-xs bg-blue-100 px-2 py-0.5 rounded-full text-blue-800 mr-1">CORE</span>}
+          {isPmc && <span className="font-mono text-xs bg-green-100 px-2 py-0.5 rounded-full text-success mr-1">{pmcId ? `PMC:${pmcId}` : 'PMC'}</span>}
+          {isSemanticScholar && <span className="font-mono text-xs bg-purple-100 px-2 py-0.5 rounded-full text-purple-800 mr-1">Semantic Scholar</span>}
+          {isCrossref && <span className="font-mono text-xs bg-teal-100 px-2 py-0.5 rounded-full text-teal-800 mr-1">Crossref</span>}
+          {isEuropePmc && <span className="font-mono text-xs bg-pink-100 px-2 py-0.5 rounded-full text-pink-800 mr-1">Europe PMC</span>}
+          {isPubmed && <span className="font-mono text-xs bg-cyan-100 px-2 py-0.5 rounded-full text-cyan-800 mr-1">PubMed</span>}
+          {isDoaj && <span className="font-mono text-xs bg-orange-100 px-2 py-0.5 rounded-full text-orange-800 mr-1">DOAJ</span>}
+          {isUnpaywall && <span className="font-mono text-xs bg-lime-100 px-2 py-0.5 rounded-full text-lime-800 mr-1">Unpaywall</span>}
           {year && <span className="ml-1">{year}</span>}
           {authors && <span className="ml-2">{authors}</span>}
           {venue && <span className="ml-2"> · {venue}</span>}
         </div>
 
         {abstract && (
-          <div className="text-sm text-gray-600 mb-2 line-clamp-2">
+          <div className="text-sm text-muted mb-2 line-clamp-2">
             {abstractPreview}
           </div>
         )}
 
-        <div className="flex items-center justify-between text-sm text-gray-500">
+        <div className="flex items-center justify-between text-sm text-muted">
           {!isArxiv && <span>Cited by {citationCount.toLocaleString()}</span>}
           {pdfUrl && (
             <a
@@ -91,7 +91,7 @@ const PaperListItem = ({ paper, isSelected, onClick }) => {
               target="_blank"
               rel="noopener noreferrer"
               onClick={(e) => e.stopPropagation()}
-              className="text-black hover:text-gray-700 font-medium"
+              className="text-accent hover:text-accent-hover font-medium"
             >
               PDF
             </a>
@@ -211,19 +211,19 @@ const StatsPanel = ({
   };
 
   return (
-    <div className="w-full md:w-80 bg-white border-l border-gray-200 overflow-y-auto">
+    <div className="w-full md:w-80 bg-surface border-l border-faint overflow-y-auto">
       {/* Header */}
-      <div className="sticky top-0 bg-white border-b border-gray-200 p-4 flex items-center justify-between z-10">
-        <h2 className="text-lg font-semibold text-black">Stats</h2>
+      <div className="sticky top-0 bg-surface border-b border-faint p-4 flex items-center justify-between z-10">
+        <h2 className="text-lg font-semibold text-ink">Stats</h2>
         <div className="flex items-center gap-2">
-          <button className="p-1.5 hover:bg-gray-100 rounded">
-            <Plus className="w-4 h-4 text-gray-600" />
+          <button className="p-1.5 hover:bg-fill rounded">
+            <Plus className="w-4 h-4 text-muted" />
           </button>
-          <button className="p-1.5 hover:bg-gray-100 rounded">
-            <Download className="w-4 h-4 text-gray-600" />
+          <button className="p-1.5 hover:bg-fill rounded">
+            <Download className="w-4 h-4 text-muted" />
           </button>
-          <button onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded">
-            <X className="w-4 h-4 text-gray-600" />
+          <button onClick={onClose} className="p-1.5 hover:bg-fill rounded">
+            <X className="w-4 h-4 text-muted" />
           </button>
         </div>
       </div>
@@ -231,21 +231,21 @@ const StatsPanel = ({
       <div className="p-4 space-y-6 md:space-y-4">
 
         {/* Related Searches */}
-        <div className="border-b border-gray-200 pb-4 pt-2">
+        <div className="border-b border-faint pb-4 pt-2">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
-              <Compass className="w-4 h-4 text-gray-600" />
-              <span className="text-sm font-medium text-black">Related Searches</span>
+              <Compass className="w-4 h-4 text-muted" />
+              <span className="text-sm font-medium text-ink">Related Searches</span>
             </div>
             <button onClick={() => toggleSection('relatedSearches')}>
-              <ChevronDown className={`w-4 h-4 text-gray-600 transition-transform ${expandedSections.relatedSearches ? '' : '-rotate-90'}`} />
+              <ChevronDown className={`w-4 h-4 text-muted transition-transform ${expandedSections.relatedSearches ? '' : '-rotate-90'}`} />
             </button>
           </div>
           {expandedSections.relatedSearches && (
             <div className="space-y-1">
               {relatedLoading ? (
-                <div className="flex items-center gap-2 py-3 text-gray-400 text-xs">
-                  <div className="w-3.5 h-3.5 border-2 border-gray-300 border-t-transparent rounded-full animate-spin" />
+                <div className="flex items-center gap-2 py-3 text-muted text-xs">
+                  <div className="w-3.5 h-3.5 border-2 border-faint border-t-transparent rounded-full animate-spin" />
                   Loading related topics...
                 </div>
               ) : relatedSearches.length > 0 ? (
@@ -253,37 +253,37 @@ const StatsPanel = ({
                   <button
                     key={idx}
                     onClick={() => onRelatedSearch && onRelatedSearch(item.text)}
-                    className="w-full text-left px-2 py-2 rounded-md hover:bg-gray-50 flex items-start gap-2.5 group transition-colors"
+                    className="w-full text-left px-2 py-2 rounded-md hover:bg-fill flex items-start gap-2.5 group transition-colors"
                   >
-                    <TrendingUp className="w-3.5 h-3.5 text-gray-400 group-hover:text-black mt-0.5 flex-shrink-0 transition-colors" />
+                    <TrendingUp className="w-3.5 h-3.5 text-muted group-hover:text-accent mt-0.5 flex-shrink-0 transition-colors" />
                     <div className="flex flex-col overflow-hidden">
-                      <span className="text-sm text-gray-700 group-hover:text-black truncate transition-colors">{item.text}</span>
+                      <span className="text-sm text-ink-soft group-hover:text-accent truncate transition-colors">{item.text}</span>
                       {item.hint && (
-                        <span className="text-[10px] text-gray-400 truncate">{item.hint}</span>
+                        <span className="text-[10px] text-muted truncate">{item.hint}</span>
                       )}
                     </div>
                   </button>
                 ))
               ) : (
-                <p className="text-xs text-gray-400 py-2">No related topics found</p>
+                <p className="text-xs text-muted py-2">No related topics found</p>
               )}
             </div>
           )}
         </div>
 
         {/* Institution */}
-        <div className="border-b border-gray-200 pb-4">
+        <div className="border-b border-faint pb-4">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
-              <Building2 className="w-4 h-4 text-gray-600" />
-              <span className="text-sm font-medium text-black">Institution</span>
+              <Building2 className="w-4 h-4 text-muted" />
+              <span className="text-sm font-medium text-ink">Institution</span>
             </div>
             <div className="flex items-center gap-2">
-              <button className="p-1 hover:bg-gray-100 rounded">
-                <MoreVertical className="w-4 h-4 text-gray-600" />
+              <button className="p-1 hover:bg-fill rounded">
+                <MoreVertical className="w-4 h-4 text-muted" />
               </button>
               <button onClick={() => toggleSection('institution')}>
-                <X className="w-4 h-4 text-gray-600" />
+                <X className="w-4 h-4 text-muted" />
               </button>
             </div>
           </div>
@@ -292,7 +292,7 @@ const StatsPanel = ({
               {sortedInstitutions.length > 0 ? (
                 <>
                   {sortedInstitutions.map(([institution, count]) => (
-                    <label key={institution} className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 p-1 rounded">
+                    <label key={institution} className="flex items-center gap-2 cursor-pointer hover:bg-fill p-1 rounded">
                       <input
                         type="checkbox"
                         checked={selectedInstitutions.includes(institution)}
@@ -303,43 +303,43 @@ const StatsPanel = ({
                             setSelectedInstitutions(selectedInstitutions.filter(i => i !== institution));
                           }
                         }}
-                        className="rounded border-gray-300"
+                        className="rounded border-faint"
                       />
-                      <span className="text-sm text-gray-700 flex-1">{institution}</span>
-                      <span className="text-sm text-gray-500">{count.toLocaleString()}</span>
+                      <span className="text-sm text-ink-soft flex-1">{institution}</span>
+                      <span className="text-sm text-muted">{count.toLocaleString()}</span>
                     </label>
                   ))}
                   {sortedInstitutions.length >= 10 && (
-                    <button className="text-xs text-gray-500 hover:text-black mt-2">More...</button>
+                    <button className="text-xs text-muted hover:text-accent mt-2">More...</button>
                   )}
                 </>
               ) : (
-                <p className="text-sm text-gray-500 py-2">No institution data available</p>
+                <p className="text-sm text-muted py-2">No institution data available</p>
               )}
             </div>
           )}
         </div>
 
         {/* Type */}
-        <div className="border-b border-gray-200 pb-4">
+        <div className="border-b border-faint pb-4">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
-              <CheckSquare className="w-4 h-4 text-gray-600" />
-              <span className="text-sm font-medium text-black">Type</span>
+              <CheckSquare className="w-4 h-4 text-muted" />
+              <span className="text-sm font-medium text-ink">Type</span>
             </div>
             <div className="flex items-center gap-2">
-              <button className="p-1 hover:bg-gray-100 rounded">
-                <MoreVertical className="w-4 h-4 text-gray-600" />
+              <button className="p-1 hover:bg-fill rounded">
+                <MoreVertical className="w-4 h-4 text-muted" />
               </button>
               <button onClick={() => toggleSection('type')}>
-                <X className="w-4 h-4 text-gray-600" />
+                <X className="w-4 h-4 text-muted" />
               </button>
             </div>
           </div>
           {expandedSections.type && (
             <div className="space-y-1">
               {sortedTypes.map(([type, count]) => (
-                <label key={type} className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 p-1 rounded">
+                <label key={type} className="flex items-center gap-2 cursor-pointer hover:bg-fill p-1 rounded">
                   <input
                     type="checkbox"
                     checked={selectedTypes.includes(type)}
@@ -350,10 +350,10 @@ const StatsPanel = ({
                         setSelectedTypes(selectedTypes.filter(t => t !== type));
                       }
                     }}
-                    className="rounded border-gray-300"
+                    className="rounded border-faint"
                   />
-                  <span className="text-sm text-gray-700 flex-1 capitalize">{type}</span>
-                  <span className="text-sm text-gray-500">{count.toLocaleString()}</span>
+                  <span className="text-sm text-ink-soft flex-1 capitalize">{type}</span>
+                  <span className="text-sm text-muted">{count.toLocaleString()}</span>
                 </label>
               ))}
             </div>
@@ -361,18 +361,18 @@ const StatsPanel = ({
         </div>
 
         {/* Source */}
-        <div className="border-b border-gray-200 pb-4">
+        <div className="border-b border-faint pb-4">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
-              <Filter className="w-4 h-4 text-gray-600" />
-              <span className="text-sm font-medium text-black">Source</span>
+              <Filter className="w-4 h-4 text-muted" />
+              <span className="text-sm font-medium text-ink">Source</span>
             </div>
             <div className="flex items-center gap-2">
-              <button className="p-1 hover:bg-gray-100 rounded">
-                <MoreVertical className="w-4 h-4 text-gray-600" />
+              <button className="p-1 hover:bg-fill rounded">
+                <MoreVertical className="w-4 h-4 text-muted" />
               </button>
               <button onClick={() => toggleSection('source')}>
-                <X className="w-4 h-4 text-gray-600" />
+                <X className="w-4 h-4 text-muted" />
               </button>
             </div>
           </div>
@@ -381,7 +381,7 @@ const StatsPanel = ({
               {sortedSources.length > 0 ? (
                 <>
                   {sortedSources.map(([source, count]) => (
-                    <label key={source} className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 p-1 rounded">
+                    <label key={source} className="flex items-center gap-2 cursor-pointer hover:bg-fill p-1 rounded">
                       <input
                         type="checkbox"
                         checked={selectedSources.includes(source)}
@@ -392,15 +392,15 @@ const StatsPanel = ({
                             setSelectedSources(selectedSources.filter(s => s !== source));
                           }
                         }}
-                        className="rounded border-gray-300"
+                        className="rounded border-faint"
                       />
-                      <span className="text-sm text-gray-700 flex-1">{source}</span>
-                      <span className="text-sm text-gray-500">{count.toLocaleString()}</span>
+                      <span className="text-sm text-ink-soft flex-1">{source}</span>
+                      <span className="text-sm text-muted">{count.toLocaleString()}</span>
                     </label>
                   ))}
                 </>
               ) : (
-                <p className="text-sm text-gray-500 py-2">No source data available</p>
+                <p className="text-sm text-muted py-2">No source data available</p>
               )}
             </div>
           )}
@@ -835,38 +835,38 @@ const DetailPanel = ({ paper, onClose, summaryJobs, onStartSummarize, isSplitScr
   };
 
   return (
-    <div className={`fixed bg-white z-50 overflow-y-auto shadow-2xl transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] transform ${paper ? 'translate-x-0' : 'translate-x-full'} ${
+    <div className={`fixed bg-surface z-50 overflow-y-auto shadow-2xl transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] transform ${paper ? 'translate-x-0' : 'translate-x-full'} ${
       isSplitScreen
-        ? 'top-4 bottom-4 right-4 w-[calc(50%-1rem)] rounded-2xl border border-gray-200'
-        : 'top-0 bottom-0 right-0 w-full md:w-[600px] border-l border-gray-200'
+        ? 'top-4 bottom-4 right-4 w-[calc(50%-1rem)] rounded-2xl border border-faint'
+        : 'top-0 bottom-0 right-0 w-full md:w-[600px] border-l border-faint'
     }`}>
       {/* Header */}
-      <div className="sticky top-0 bg-white border-b border-gray-200 p-4 flex items-start justify-between">
+      <div className="sticky top-0 bg-surface border-b border-faint p-4 flex items-start justify-between">
         <div className="flex-1 pr-4">
           <div className="flex items-center gap-2 mb-2">
-            <FileText className="w-4 h-4 text-gray-500" />
-            <span className="text-xs text-gray-500 uppercase">Work</span>
+            <FileText className="w-4 h-4 text-muted" />
+            <span className="text-xs text-muted uppercase">Work</span>
           </div>
-          <h2 className="text-xl font-semibold text-black leading-tight">
+          <h2 className="text-xl font-semibold text-ink leading-tight">
             {paper.title || 'Untitled Paper'}
           </h2>
         </div>
         <button
           onClick={onClose}
-          className="p-2 hover:bg-gray-100 rounded transition-colors"
+          className="p-2 hover:bg-fill rounded transition-colors"
         >
-          <X className="w-5 h-5 text-gray-600" />
+          <X className="w-5 h-5 text-muted" />
         </button>
       </div>
 
       {/* Action Buttons */}
-      <div className="p-4 border-b border-gray-200 flex flex-wrap gap-2">
+      <div className="p-4 border-b border-faint flex flex-wrap gap-2">
         {htmlUrl && (
           <a
             href={htmlUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="px-4 py-2 bg-black hover:bg-gray-800 text-white rounded text-sm flex items-center gap-2 transition-colors"
+            className="px-4 py-2 bg-accent hover:bg-accent-hover text-white rounded text-sm flex items-center gap-2 transition-colors"
           >
             <FileText className="w-4 h-4" />
             HTML
@@ -877,7 +877,7 @@ const DetailPanel = ({ paper, onClose, summaryJobs, onStartSummarize, isSplitScr
             href={pdfUrlForExtract}
             target="_blank"
             rel="noopener noreferrer"
-            className="px-4 py-2 bg-black hover:bg-gray-800 text-white rounded text-sm flex items-center gap-2 transition-colors"
+            className="px-4 py-2 bg-accent hover:bg-accent-hover text-white rounded text-sm flex items-center gap-2 transition-colors"
           >
             <Download className="w-4 h-4" />
             PDF
@@ -887,7 +887,7 @@ const DetailPanel = ({ paper, onClose, summaryJobs, onStartSummarize, isSplitScr
           <button
             onClick={handleFulltext}
             disabled={fulltextLoading}
-            className="px-4 py-2 bg-black hover:bg-gray-800 text-white rounded text-sm flex items-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-4 py-2 bg-accent hover:bg-accent-hover text-white rounded text-sm flex items-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             title="Find the legal open-access copy, download it and index the full text for chat"
           >
             {fulltextLoading ? (
@@ -904,31 +904,31 @@ const DetailPanel = ({ paper, onClose, summaryJobs, onStartSummarize, isSplitScr
           </button>
         )}
         {fulltext && (
-          <div className="w-full text-sm rounded border border-gray-200 bg-gray-50 px-3 py-2">
+          <div className="w-full text-sm rounded border border-faint bg-fill px-3 py-2">
             {fulltext.available ? (
               <>
-                <span className="font-medium text-black">Open-access copy found via {fulltext.source}.</span>
+                <span className="font-medium text-ink">Open-access copy found via {fulltext.source}.</span>
                 {' '}
                 {fulltext.pdf_url && (
-                  <a href={fulltext.pdf_url} target="_blank" rel="noopener noreferrer" className="underline text-black">
+                  <a href={fulltext.pdf_url} target="_blank" rel="noopener noreferrer" className="underline text-ink">
                     Open PDF
                   </a>
                 )}
                 {fulltext.chat_ready && fulltext.text_chars > 0 && (
-                  <span className="text-gray-700"> Indexed {fulltext.text_chars.toLocaleString()} chars for chat.</span>
+                  <span className="text-ink-soft"> Indexed {fulltext.text_chars.toLocaleString()} chars for chat.</span>
                 )}
                 {fulltext.status === 'download_failed' && (
-                  <span className="text-red-600"> {fulltext.message}</span>
+                  <span className="text-danger"> {fulltext.message}</span>
                 )}
               </>
             ) : (
-              <span className="text-gray-700">{fulltext.message || 'No open-access full text found for this paper.'}</span>
+              <span className="text-ink-soft">{fulltext.message || 'No open-access full text found for this paper.'}</span>
             )}
           </div>
         )}
         <button
           onClick={handleCopyJSON}
-          className="px-4 py-2 bg-black hover:bg-gray-800 text-white rounded text-sm flex items-center gap-2 transition-colors"
+          className="px-4 py-2 bg-accent hover:bg-accent-hover text-white rounded text-sm flex items-center gap-2 transition-colors"
           title="Copy paper data as JSON"
         >
           <Code className="w-4 h-4" />
@@ -937,7 +937,7 @@ const DetailPanel = ({ paper, onClose, summaryJobs, onStartSummarize, isSplitScr
         <div className="relative link-dropdown-container">
           <button
             onClick={() => setShowLinkDropdown(!showLinkDropdown)}
-            className={`px-4 py-2 bg-black hover:bg-gray-800 text-white rounded text-sm flex items-center gap-2 transition-colors ${showLinkDropdown ? 'bg-gray-800' : ''}`}
+            className={`px-4 py-2 bg-accent hover:bg-accent-hover text-white rounded text-sm flex items-center gap-2 transition-colors ${showLinkDropdown ? 'bg-accent-hover' : ''}`}
             title="Copy URL or Share"
           >
             {copiedToClipboard ? (
@@ -949,17 +949,17 @@ const DetailPanel = ({ paper, onClose, summaryJobs, onStartSummarize, isSplitScr
             <ChevronDown className={`w-3 h-3 transition-transform ${showLinkDropdown ? 'rotate-180' : ''}`} />
           </button>
           {showLinkDropdown && (
-            <div className="absolute top-full left-0 mt-1 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-50 py-1">
+            <div className="absolute top-full left-0 mt-1 w-48 bg-surface border border-faint rounded-lg shadow-lg z-50 py-1">
               <button
                 onClick={handleCopyURL}
-                className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2 text-gray-700"
+                className="w-full px-3 py-2 text-left text-sm hover:bg-fill flex items-center gap-2 text-ink-soft"
               >
                 <Copy className="w-4 h-4" />
                 Copy URL
               </button>
               <button
                 onClick={handleShare}
-                className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2 text-gray-700"
+                className="w-full px-3 py-2 text-left text-sm hover:bg-fill flex items-center gap-2 text-ink-soft"
               >
                 <Share2 className="w-4 h-4" />
                 Share
@@ -970,8 +970,8 @@ const DetailPanel = ({ paper, onClose, summaryJobs, onStartSummarize, isSplitScr
         <button
           onClick={isSaved ? handleOpenNotes : handleSaveArticle}
           className={`px-4 py-2 rounded text-sm flex items-center gap-2 transition-colors ${isSaved
-            ? 'bg-gray-100 hover:bg-gray-200 text-black border border-gray-300'
-            : 'bg-black hover:bg-gray-800 text-white'
+            ? 'bg-fill hover:bg-fill-strong text-ink border border-faint'
+            : 'bg-accent hover:bg-accent-hover text-white'
             }`}
           title={isSaved ? 'View/Edit Notes' : 'Save Article'}
           disabled={loadingSaved}
@@ -991,7 +991,7 @@ const DetailPanel = ({ paper, onClose, summaryJobs, onStartSummarize, isSplitScr
         {isSaved && notes && (
           <button
             onClick={handleOpenNotes}
-            className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-black rounded text-sm flex items-center gap-2 transition-colors border border-gray-300"
+            className="px-4 py-2 bg-fill hover:bg-fill-strong text-ink rounded text-sm flex items-center gap-2 transition-colors border border-faint"
             title="View Notes"
           >
             <FileText className="w-4 h-4" />
@@ -1005,8 +1005,8 @@ const DetailPanel = ({ paper, onClose, summaryJobs, onStartSummarize, isSplitScr
               onClick={handleSummarize}
               disabled={summarizing || summary}
               className={`px-4 py-2 rounded text-sm flex items-center gap-2 transition-colors ${summary
-                ? 'bg-gray-100 hover:bg-gray-200 text-black border border-gray-300'
-                : 'bg-black hover:bg-gray-800 text-white'
+                ? 'bg-fill hover:bg-fill-strong text-ink border border-faint'
+                : 'bg-accent hover:bg-accent-hover text-white'
                 } disabled:opacity-50 disabled:cursor-not-allowed`}
               title={summary ? 'Summary already generated' : pdfUrlForExtract ? 'Extract PDF and generate AI summary (local AI)' : ((isSemanticScholar || isCrossref || isEuropePmc || isPubmed || isDoaj || isUnpaywall) && abstract ? 'PDF not available - only abstract available' : 'Extract PDF and generate AI summary')}
             >
@@ -1041,8 +1041,8 @@ const DetailPanel = ({ paper, onClose, summaryJobs, onStartSummarize, isSplitScr
                   }
                 }}
                 className={`px-4 py-2 rounded text-sm flex items-center gap-2 transition-colors ${showChat
-                  ? 'bg-gray-100 hover:bg-gray-200 text-black border border-gray-300'
-                  : 'bg-black hover:bg-gray-800 text-white'
+                  ? 'bg-fill hover:bg-fill-strong text-ink border border-faint'
+                  : 'bg-accent hover:bg-accent-hover text-white'
                   }`}
                 title="Ask questions about this paper"
               >
@@ -1105,8 +1105,8 @@ const DetailPanel = ({ paper, onClose, summaryJobs, onStartSummarize, isSplitScr
                 }}
                 disabled={draftGenerating}
                 className={`px-4 py-2 rounded text-sm flex items-center gap-2 transition-colors ${draft
-                  ? 'bg-emerald-100 hover:bg-emerald-200 text-emerald-800 border border-emerald-300'
-                  : 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white'
+                  ? 'bg-success-soft hover:bg-success-soft text-success border border-success-soft'
+                  : 'bg-accent hover:bg-accent-hover text-white shadow-soft'
                   } disabled:opacity-60 disabled:cursor-not-allowed`}
                 title={draft ? 'Scroll to generated draft' : 'Generate a research draft with AI figure analysis'}
               >
@@ -1136,14 +1136,14 @@ const DetailPanel = ({ paper, onClose, summaryJobs, onStartSummarize, isSplitScr
       <div className="p-4 space-y-4">
         {year && (
           <div>
-            <span className="text-xs text-gray-500 uppercase">Year</span>
-            <p className="text-black mt-1">{year}</p>
+            <span className="text-xs text-muted uppercase">Year</span>
+            <p className="text-ink mt-1">{year}</p>
           </div>
         )}
 
         <div>
-          <span className="text-xs text-gray-500 uppercase">Type</span>
-          <p className="text-black mt-1">
+          <span className="text-xs text-muted uppercase">Type</span>
+          <p className="text-ink mt-1">
             {paper.publicationTypes && paper.publicationTypes.length > 0
               ? paper.publicationTypes.join(', ')
               : 'Article'}
@@ -1152,14 +1152,14 @@ const DetailPanel = ({ paper, onClose, summaryJobs, onStartSummarize, isSplitScr
 
         {abstract && (
           <div>
-            <span className="text-xs text-gray-500 uppercase">Abstract</span>
-            <p className="text-gray-700 mt-1 leading-relaxed whitespace-pre-wrap">
+            <span className="text-xs text-muted uppercase">Abstract</span>
+            <p className="text-ink-soft mt-1 leading-relaxed whitespace-pre-wrap">
               {abstractExpanded ? abstract : abstractPreview}
             </p>
             {abstract.length > 300 && (
               <button
                 onClick={() => setAbstractExpanded(!abstractExpanded)}
-                className="text-black hover:text-gray-700 text-sm mt-2 underline"
+                className="text-ink hover:text-ink-soft text-sm mt-2 underline"
               >
                 {abstractExpanded ? 'less' : 'more'}
               </button>
@@ -1169,22 +1169,22 @@ const DetailPanel = ({ paper, onClose, summaryJobs, onStartSummarize, isSplitScr
 
         {venue && (
           <div>
-            <span className="text-xs text-gray-500 uppercase">Source</span>
-            <p className="text-black mt-1">{venue}</p>
+            <span className="text-xs text-muted uppercase">Source</span>
+            <p className="text-ink mt-1">{venue}</p>
           </div>
         )}
 
         {authors.length > 0 && (
           <div>
-            <span className="text-xs text-gray-500 uppercase">Authors</span>
+            <span className="text-xs text-muted uppercase">Authors</span>
             <div className="mt-1 space-y-1">
               {authors.slice(0, 5).map((author, idx) => (
-                <p key={idx} className="text-black">
+                <p key={idx} className="text-ink">
                   {typeof author === 'string' ? author : author.name || author}
                 </p>
               ))}
               {authors.length > 5 && (
-                <button className="text-black hover:text-gray-700 text-sm underline">
+                <button className="text-ink hover:text-ink-soft text-sm underline">
                   +{authors.length - 5} more
                 </button>
               )}
@@ -1193,40 +1193,40 @@ const DetailPanel = ({ paper, onClose, summaryJobs, onStartSummarize, isSplitScr
         )}
 
         <div>
-          <span className="text-xs text-gray-500 uppercase">Language</span>
-          <p className="text-black mt-1">English</p>
+          <span className="text-xs text-muted uppercase">Language</span>
+          <p className="text-ink mt-1">English</p>
         </div>
 
         <div className="grid grid-cols-2 gap-4">
           {referenceCount > 0 && (
             <div>
-              <span className="text-xs text-gray-500 uppercase">Cites</span>
-              <p className="text-black mt-1">{referenceCount.toLocaleString()}</p>
+              <span className="text-xs text-muted uppercase">Cites</span>
+              <p className="text-ink mt-1">{referenceCount.toLocaleString()}</p>
             </div>
           )}
           {citationCount > 0 && (
             <div>
-              <span className="text-xs text-gray-500 uppercase">Cited by</span>
-              <p className="text-black mt-1">{citationCount.toLocaleString()}</p>
+              <span className="text-xs text-muted uppercase">Cited by</span>
+              <p className="text-ink mt-1">{citationCount.toLocaleString()}</p>
             </div>
           )}
         </div>
 
         {isOpenAccess && (
           <div>
-            <span className="text-xs text-gray-500 uppercase">Open Access</span>
-            <p className="text-black mt-1">Yes</p>
+            <span className="text-xs text-muted uppercase">Open Access</span>
+            <p className="text-ink mt-1">Yes</p>
           </div>
         )}
 
         {fields.length > 0 && (
           <div>
-            <span className="text-xs text-gray-500 uppercase">Topic</span>
+            <span className="text-xs text-muted uppercase">Topic</span>
             <div className="mt-1 flex flex-wrap gap-2">
               {fields.map((field, idx) => (
                 <span
                   key={idx}
-                  className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-sm border border-gray-300"
+                  className="px-2 py-1 bg-fill text-ink-soft rounded text-sm border border-faint"
                 >
                   {field}
                 </span>
@@ -1237,12 +1237,12 @@ const DetailPanel = ({ paper, onClose, summaryJobs, onStartSummarize, isSplitScr
 
         {doi && (
           <div>
-            <span className="text-xs text-gray-500 uppercase">DOI</span>
+            <span className="text-xs text-muted uppercase">DOI</span>
             <a
               href={`https://doi.org/${doi}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-black hover:text-gray-700 mt-1 block underline"
+              className="text-ink hover:text-ink-soft mt-1 block underline"
             >
               {doi}
             </a>
@@ -1251,12 +1251,12 @@ const DetailPanel = ({ paper, onClose, summaryJobs, onStartSummarize, isSplitScr
 
         {paper.url && paper.url !== 'N/A' && (
           <div>
-            <span className="text-xs text-gray-500 uppercase">URL</span>
+            <span className="text-xs text-muted uppercase">URL</span>
             <a
               href={paper.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-black hover:text-gray-700 mt-1 block break-all underline"
+              className="text-ink hover:text-ink-soft mt-1 block break-all underline"
             >
               {paper.url}
             </a>
@@ -1266,17 +1266,17 @@ const DetailPanel = ({ paper, onClose, summaryJobs, onStartSummarize, isSplitScr
 
       {/* Chat Interface */}
       {showChat && (
-        <div ref={chatRef} className="p-4 border-t-2 border-purple-300 bg-purple-50">
+        <div ref={chatRef} className="p-4 border-t-2 border-accent-soft bg-accent-tint">
           <div className="flex items-center gap-2 mb-3">
-            <Bot className="w-5 h-5 text-purple-600" />
-            <h3 className="text-base font-semibold text-black">Ask about this paper</h3>
+            <Bot className="w-5 h-5 text-accent" />
+            <h3 className="text-base font-semibold text-ink">Ask about this paper</h3>
           </div>
 
           {/* Chat Messages */}
-          <div className="bg-white border border-gray-200 rounded-lg p-4 max-h-[400px] overflow-y-auto mb-3 space-y-4">
+          <div className="bg-surface border border-faint rounded-lg p-4 max-h-[400px] overflow-y-auto mb-3 space-y-4">
             {chatMessages.length === 0 ? (
-              <div className="text-center text-gray-500 text-sm py-8">
-                <Bot className="w-8 h-8 mx-auto mb-2 text-gray-400" />
+              <div className="text-center text-muted text-sm py-8">
+                <Bot className="w-8 h-8 mx-auto mb-2 text-muted" />
                 <p>Ask any question about this research paper</p>
                 <p className="text-xs mt-1">Example: "What is the main contribution?" or "Explain the methodology"</p>
               </div>
@@ -1286,7 +1286,7 @@ const DetailPanel = ({ paper, onClose, summaryJobs, onStartSummarize, isSplitScr
                   key={idx}
                   className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}
                 >
-                  <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${msg.role === 'user' ? 'bg-black text-white' : 'bg-purple-100 text-purple-600'
+                  <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${msg.role === 'user' ? 'bg-accent text-white' : 'bg-accent-soft text-accent'
                     }`}>
                     {msg.role === 'user' ? (
                       <User className="w-4 h-4" />
@@ -1296,12 +1296,12 @@ const DetailPanel = ({ paper, onClose, summaryJobs, onStartSummarize, isSplitScr
                   </div>
                   <div className={`flex-1 ${msg.role === 'user' ? 'text-right' : 'text-left'}`}>
                     <div className={`inline-block p-3 rounded-lg max-w-[85%] ${msg.role === 'user'
-                      ? 'bg-black text-white'
-                      : 'bg-gray-100 text-gray-800'
+                      ? 'bg-accent text-white'
+                      : 'bg-fill text-ink'
                       }`}>
                       <p className="text-sm whitespace-pre-wrap leading-relaxed">{msg.content}</p>
                       {msg.role === 'assistant' && msg.paperId && (
-                        <p className="text-xs text-gray-500 mt-2 pt-2 border-t border-gray-200 font-mono break-all">
+                        <p className="text-xs text-muted mt-2 pt-2 border-t border-faint font-mono break-all">
                           Paper hash id: {msg.paperId}
                         </p>
                       )}
@@ -1312,14 +1312,14 @@ const DetailPanel = ({ paper, onClose, summaryJobs, onStartSummarize, isSplitScr
             )}
             {chatLoading && (
               <div className="flex gap-3">
-                <div className="flex-shrink-0 w-8 h-8 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center">
+                <div className="flex-shrink-0 w-8 h-8 rounded-full bg-accent-soft text-accent flex items-center justify-center">
                   <Bot className="w-4 h-4" />
                 </div>
-                <div className="bg-gray-100 rounded-lg p-3">
+                <div className="bg-fill rounded-lg p-3">
                   <div className="flex gap-1">
-                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                    <div className="w-2 h-2 bg-muted rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                    <div className="w-2 h-2 bg-muted rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                    <div className="w-2 h-2 bg-muted rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
                   </div>
                 </div>
               </div>
@@ -1333,13 +1333,13 @@ const DetailPanel = ({ paper, onClose, summaryJobs, onStartSummarize, isSplitScr
               value={chatInput}
               onChange={(e) => setChatInput(e.target.value)}
               placeholder="Ask a question about this paper..."
-              className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+              className="flex-1 px-4 py-2 border border-faint rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent"
               disabled={chatLoading}
             />
             <button
               type="submit"
               disabled={!chatInput.trim() || chatLoading}
-              className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+              className="px-4 py-2 bg-accent hover:bg-accent-hover text-white rounded-full disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
             >
               <Send className="w-4 h-4" />
               <span>Send</span>
@@ -1350,34 +1350,34 @@ const DetailPanel = ({ paper, onClose, summaryJobs, onStartSummarize, isSplitScr
 
       {/* AI Summary Display */}
       {summary && (
-        <div ref={summaryRef} className="p-4 border-t-2 border-blue-300 bg-blue-50">
+        <div ref={summaryRef} className="p-4 border-t-2 border-blue-300 bg-info-soft">
           <div className="flex items-center gap-2 mb-3">
-            <MessageSquare className="w-5 h-5 text-blue-600" />
-            <h3 className="text-base font-semibold text-black">AI Summary (Generated locally)</h3>
+            <MessageSquare className="w-5 h-5 text-info" />
+            <h3 className="text-base font-semibold text-ink">AI Summary (Generated locally)</h3>
           </div>
           <div className="space-y-4">
             {summary.problem_statement && (
-              <div className="bg-white border border-gray-200 rounded-lg p-4">
-                <h4 className="text-sm font-semibold text-gray-700 mb-2">Problem Statement</h4>
-                <p className="text-sm text-gray-600 leading-relaxed">{summary.problem_statement}</p>
+              <div className="bg-surface border border-faint rounded-lg p-4">
+                <h4 className="text-sm font-semibold text-ink-soft mb-2">Problem Statement</h4>
+                <p className="text-sm text-muted leading-relaxed">{summary.problem_statement}</p>
               </div>
             )}
             {summary.methodology && (
-              <div className="bg-white border border-gray-200 rounded-lg p-4">
-                <h4 className="text-sm font-semibold text-gray-700 mb-2">Methodology</h4>
-                <p className="text-sm text-gray-600 leading-relaxed">{summary.methodology}</p>
+              <div className="bg-surface border border-faint rounded-lg p-4">
+                <h4 className="text-sm font-semibold text-ink-soft mb-2">Methodology</h4>
+                <p className="text-sm text-muted leading-relaxed">{summary.methodology}</p>
               </div>
             )}
             {summary.key_findings && (
-              <div className="bg-white border border-gray-200 rounded-lg p-4">
-                <h4 className="text-sm font-semibold text-gray-700 mb-2">Key Findings</h4>
-                <p className="text-sm text-gray-600 leading-relaxed">{summary.key_findings}</p>
+              <div className="bg-surface border border-faint rounded-lg p-4">
+                <h4 className="text-sm font-semibold text-ink-soft mb-2">Key Findings</h4>
+                <p className="text-sm text-muted leading-relaxed">{summary.key_findings}</p>
               </div>
             )}
             {summary.conclusion && (
-              <div className="bg-white border border-gray-200 rounded-lg p-4">
-                <h4 className="text-sm font-semibold text-gray-700 mb-2">Conclusion</h4>
-                <p className="text-sm text-gray-600 leading-relaxed">{summary.conclusion}</p>
+              <div className="bg-surface border border-faint rounded-lg p-4">
+                <h4 className="text-sm font-semibold text-ink-soft mb-2">Conclusion</h4>
+                <p className="text-sm text-muted leading-relaxed">{summary.conclusion}</p>
               </div>
             )}
           </div>
@@ -1386,24 +1386,24 @@ const DetailPanel = ({ paper, onClose, summaryJobs, onStartSummarize, isSplitScr
 
       {/* Generated Draft Display */}
       {draft && (
-        <div ref={draftRef} className="p-4 border-t-2 border-emerald-300 bg-emerald-50">
+        <div ref={draftRef} className="p-4 border-t-2 border-success-soft bg-success-soft">
           <div className="flex items-center justify-between mb-2">
             <button
               onClick={() => setDraftMinimized(prev => !prev)}
               className="flex items-center gap-2 hover:opacity-80 transition-opacity"
               title={draftMinimized ? 'Expand draft' : 'Minimize draft'}
             >
-              <PenLine className="w-5 h-5 text-emerald-600" />
-              <h3 className="text-base font-semibold text-black">AI Research Draft</h3>
+              <PenLine className="w-5 h-5 text-success" />
+              <h3 className="text-base font-semibold text-ink">AI Research Draft</h3>
               {draftFigures.length > 0 && (
-                <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-medium">
+                <span className="text-xs bg-success-soft text-success px-2 py-0.5 rounded-full font-medium">
                   {draftFigures.length} figures analyzed
                 </span>
               )}
               {draftMinimized ? (
-                <ChevronDown className="w-4 h-4 text-gray-500" />
+                <ChevronDown className="w-4 h-4 text-muted" />
               ) : (
-                <ChevronUp className="w-4 h-4 text-gray-500" />
+                <ChevronUp className="w-4 h-4 text-muted" />
               )}
             </button>
             {!draftMinimized && (
@@ -1428,10 +1428,10 @@ const DetailPanel = ({ paper, onClose, summaryJobs, onStartSummarize, isSplitScr
                     navigator.clipboard.writeText(sections + figureSection);
                     showToast('Draft copied to clipboard', 'success');
                   }}
-                  className="p-1.5 hover:bg-emerald-100 rounded transition-colors"
+                  className="p-1.5 hover:bg-success-soft rounded transition-colors"
                   title="Copy draft to clipboard"
                 >
-                  <ClipboardCopy className="w-4 h-4 text-emerald-600" />
+                  <ClipboardCopy className="w-4 h-4 text-success" />
                 </button>
                 <button
                   onClick={() => {
@@ -1457,10 +1457,10 @@ const DetailPanel = ({ paper, onClose, summaryJobs, onStartSummarize, isSplitScr
                     URL.revokeObjectURL(url);
                     showToast('Draft downloaded as .txt', 'success');
                   }}
-                  className="p-1.5 hover:bg-emerald-100 rounded transition-colors"
+                  className="p-1.5 hover:bg-success-soft rounded transition-colors"
                   title="Download draft as .txt"
                 >
-                  <Download className="w-4 h-4 text-emerald-600" />
+                  <Download className="w-4 h-4 text-success" />
                 </button>
               </div>
             )}
@@ -1469,12 +1469,12 @@ const DetailPanel = ({ paper, onClose, summaryJobs, onStartSummarize, isSplitScr
           {!draftMinimized && (
             <>
               {draftSupportSummary && (
-                <div className="bg-white border border-gray-200 rounded-lg p-3 text-sm">
+                <div className="bg-surface border border-faint rounded-lg p-3 text-sm">
                   <div className="flex flex-wrap items-center gap-2 justify-between">
-                    <span className="font-semibold text-gray-800">
+                    <span className="font-semibold text-ink">
                       Claim check: {draftSupportSummary.supported_sentences} of {draftSupportSummary.total_sentences} sentences supported by the sources
                       {draftSupportSummary.unsupported_sentences > 0 && (
-                        <span className="text-red-700">, {draftSupportSummary.unsupported_sentences} unsupported (highlighted below)</span>
+                        <span className="text-danger">, {draftSupportSummary.unsupported_sentences} unsupported (highlighted below)</span>
                       )}
                     </span>
                     <button
@@ -1499,9 +1499,9 @@ const DetailPanel = ({ paper, onClose, summaryJobs, onStartSummarize, isSplitScr
                   {draftCheck && (
                     <div className="mt-2">
                       {draftCheck.blocked ? (
-                        <p className="text-red-700 font-medium">Export blocked: {draftCheck.block_reason}</p>
+                        <p className="text-danger font-medium">Export blocked: {draftCheck.block_reason}</p>
                       ) : (
-                        <p className="text-emerald-700">No retracted papers among the cited sources. Export is allowed.</p>
+                        <p className="text-success">No retracted papers among the cited sources. Export is allowed.</p>
                       )}
                       {draftCheck.warnings && draftCheck.warnings.map((w, i) => (
                         <p key={i} className="text-amber-700 text-xs mt-1">{w}</p>
@@ -1509,7 +1509,7 @@ const DetailPanel = ({ paper, onClose, summaryJobs, onStartSummarize, isSplitScr
                     </div>
                   )}
                   {draftExtraction.length > 0 && (
-                    <p className="text-xs text-gray-500 mt-2">
+                    <p className="text-xs text-muted mt-2">
                       Built from {draftExtraction.length} source{draftExtraction.length > 1 ? 's' : ''}: {draftExtraction.map((row) => `[${row.index}] ${row.title}`).join('; ')}
                     </p>
                   )}
@@ -1528,25 +1528,25 @@ const DetailPanel = ({ paper, onClose, summaryJobs, onStartSummarize, isSplitScr
                   if (!content || content === 'No figures available') return null;
                   const isCollapsed = draftCollapsed[key];
                   return (
-                    <div key={key} className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+                    <div key={key} className="bg-surface border border-faint rounded-lg overflow-hidden">
                       <button
                         onClick={() => setDraftCollapsed(prev => ({ ...prev, [key]: !prev[key] }))}
-                        className="w-full text-left px-4 py-3 flex items-center justify-between hover:bg-gray-50 transition-colors"
+                        className="w-full text-left px-4 py-3 flex items-center justify-between hover:bg-fill transition-colors"
                       >
                         <div className="flex items-center gap-2">
                           <span>{icon}</span>
-                          <h4 className="text-sm font-semibold text-gray-800">{label}</h4>
+                          <h4 className="text-sm font-semibold text-ink">{label}</h4>
                         </div>
-                        {isCollapsed ? <Eye className="w-4 h-4 text-gray-400" /> : <EyeOff className="w-4 h-4 text-gray-400" />}
+                        {isCollapsed ? <Eye className="w-4 h-4 text-muted" /> : <EyeOff className="w-4 h-4 text-muted" />}
                       </button>
                       {!isCollapsed && (
                         <div className="px-4 pb-4">
-                          <div className="text-sm text-gray-700 leading-relaxed whitespace-pre-line">
+                          <div className="text-sm text-ink-soft leading-relaxed whitespace-pre-line">
                             {content.split(/(?<=[.!?])\s+/).map((sentence, i) => {
                               const flag = draftSupport.find((f) => f.section === key && f.sentence === sentence);
                               if (flag && !flag.supported) {
                                 return (
-                                  <span key={i} className="bg-red-100 text-red-800 px-0.5 rounded" title="Unsupported: no source sentence backs this claim">
+                                  <span key={i} className="bg-red-100 text-danger px-0.5 rounded" title="Unsupported: no source sentence backs this claim">
                                     {sentence}{' '}
                                   </span>
                                 );
@@ -1562,26 +1562,26 @@ const DetailPanel = ({ paper, onClose, summaryJobs, onStartSummarize, isSplitScr
 
                 {/* Figure Analyses */}
                 {draftFigures.length > 0 && (
-                  <div className="bg-white border border-gray-200 rounded-lg p-4">
+                  <div className="bg-surface border border-faint rounded-lg p-4">
                     <div className="flex items-center gap-2 mb-3">
-                      <Image className="w-4 h-4 text-emerald-600" />
-                      <h4 className="text-sm font-semibold text-gray-800">Figure Analysis Details</h4>
+                      <Image className="w-4 h-4 text-success" />
+                      <h4 className="text-sm font-semibold text-ink">Figure Analysis Details</h4>
                     </div>
                     <div className="space-y-3">
                       {draftFigures.map((fig, idx) => (
-                        <div key={idx} className="border border-emerald-100 bg-emerald-50/50 rounded-lg p-3">
+                        <div key={idx} className="border border-success-soft bg-success-soft/50 rounded-lg p-3">
                           <div className="flex items-center gap-2 mb-2">
-                            <span className="text-xs font-bold bg-emerald-200 text-emerald-800 px-2 py-0.5 rounded">
+                            <span className="text-xs font-bold bg-success-soft text-success px-2 py-0.5 rounded">
                               Figure {fig.figure_number || idx + 1}
                             </span>
-                            <span className="text-xs text-gray-500">Page {fig.page_number || '?'}</span>
-                            <span className="text-xs text-emerald-600 font-medium">{fig.chart_type || 'Unknown'}</span>
+                            <span className="text-xs text-muted">Page {fig.page_number || '?'}</span>
+                            <span className="text-xs text-success font-medium">{fig.chart_type || 'Unknown'}</span>
                           </div>
                           {fig.description && (
-                            <p className="text-sm text-gray-700 mb-1"><strong>Description:</strong> {fig.description}</p>
+                            <p className="text-sm text-ink-soft mb-1"><strong>Description:</strong> {fig.description}</p>
                           )}
                           {fig.data_insights && (
-                            <p className="text-sm text-gray-600"><strong>Insights:</strong> {fig.data_insights}</p>
+                            <p className="text-sm text-muted"><strong>Insights:</strong> {fig.data_insights}</p>
                           )}
                         </div>
                       ))}
@@ -1591,7 +1591,7 @@ const DetailPanel = ({ paper, onClose, summaryJobs, onStartSummarize, isSplitScr
               </div>
 
               <div className="mt-3 text-center">
-                <p className="text-[10px] text-emerald-400">Generated locally with Ollama - review and edit before use</p>
+                <p className="text-[10px] text-success">Generated locally with Ollama - review and edit before use</p>
               </div>
             </>
           )}
@@ -1818,13 +1818,36 @@ export default function Results() {
   // instead of letting those actions hang or fail silently.
   const [aiDown, setAiDown] = useState(false);
 
-  useEffect(() => {
-    let cancelled = false;
-    checkAiReady().then((ok) => {
-      if (!cancelled) setAiDown(!ok);
-    });
-    return () => { cancelled = true; };
+  // Consecutive confirmed failures of the /ready check. The banner
+  // only appears after two in a row, so one slow check (e.g. while
+  // ten source searches are in flight) never reads as "AI is down".
+  const aiFailures = useRef(0);
+  const refreshAiStatus = useCallback(async () => {
+    const ok = await checkAiReady();
+    if (ok) {
+      aiFailures.current = 0;
+      setAiDown(false);
+    } else {
+      aiFailures.current += 1;
+      if (aiFailures.current >= 2) setAiDown(true);
+    }
   }, []);
+
+  const handleRetryAi = () => {
+    aiFailures.current = 0;
+    setAiDown(false);
+    refreshAiStatus();
+  };
+
+  useEffect(() => {
+    refreshAiStatus();
+  }, [refreshAiStatus]);
+
+  // Re-check once a search finishes: the connection pool is free
+  // again, so this read is not racing the source fetches.
+  useEffect(() => {
+    if (!loading) refreshAiStatus();
+  }, [loading, refreshAiStatus]);
 
   // Resolve an open-access PDF via Unpaywall when the selected paper
   // carries a DOI but no PDF link. Unpaywall is DOI-based, so it never
@@ -2745,25 +2768,31 @@ export default function Results() {
   const currentPapers = papers.slice(startIndex, endIndex);
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-surface">
       {/* YouTube-style top progress bar */}
       {fetchProgress > 0 && (
         <div className="fixed top-0 left-0 right-0 z-[9999] h-[3px] bg-transparent">
           <div
-            className="h-full bg-black transition-all duration-300 ease-out"
-            style={{ width: `${fetchProgress}%`, boxShadow: '0 0 8px rgba(0,0,0,0.4)' }}
+            className="h-full bg-accent transition-all duration-300 ease-out"
+            style={{ width: `${fetchProgress}%`, boxShadow: '0 0 8px rgba(15,118,110,0.4)' }}
           />
         </div>
       )}
       {/* AI backend status banner - search works without AI, summaries/chat/drafts do not */}
       {aiDown && (
-        <div className="bg-amber-50 border-b border-amber-200 px-4 py-3 text-sm text-amber-900">
-          The AI backend is currently unavailable, so summaries, chat and drafts will not work right now.
-          Search still works. Please try again later.
+        <div className="bg-warn-bg border-b border-amber-200 px-4 py-3 text-sm text-warn flex items-center justify-between gap-4">
+          <span>The AI backend is currently unavailable, so summaries, chat and drafts will not work right now. Search still works.</span>
+          <button
+            type="button"
+            onClick={handleRetryAi}
+            className="shrink-0 px-3 py-1 rounded-full border border-amber-300 bg-surface text-warn font-medium hover:bg-amber-100 transition-colors"
+          >
+            Retry
+          </button>
         </div>
       )}
       {/* Query Builder / Filter Area */}
-      <div className="border-b border-gray-200 bg-white">
+      <div className="border-b border-faint bg-surface">
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex items-center gap-4 flex-wrap">
             {/* Main Search Bar */}
@@ -2786,7 +2815,7 @@ export default function Results() {
             <div className="flex items-center gap-2">
               <button
                 onClick={addFilter}
-                className="flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-md hover:bg-gray-50 text-sm font-medium transition-colors"
+                className="flex items-center gap-2 px-3 py-2 border border-faint rounded-md hover:bg-fill text-sm font-medium transition-colors"
               >
                 <Plus className="w-4 h-4" />
                 Add Filter
@@ -2796,14 +2825,14 @@ export default function Results() {
 
           {/* Active Filters Row */}
           {filters.length > 0 && (
-            <div className="mt-4 flex items-center gap-2 flex-wrap border-t border-gray-100 pt-4">
-              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider mr-2">Advanced Filters:</span>
+            <div className="mt-4 flex items-center gap-2 flex-wrap border-t border-faint pt-4">
+              <span className="text-xs font-semibold text-muted uppercase tracking-wider mr-2">Advanced Filters:</span>
               {filters.map((filter) => (
-                <div key={filter.id} className="flex items-center bg-gray-50 border border-gray-200 rounded-lg p-1.5 shadow-sm">
+                <div key={filter.id} className="flex items-center bg-fill border border-faint rounded-lg p-1.5 shadow-sm">
                   <select
                     value={filter.field}
                     onChange={(e) => updateFilter(filter.id, e.target.value, filter.operator, filter.value)}
-                    className="text-xs bg-transparent border-none focus:ring-0 font-medium text-gray-700"
+                    className="text-xs bg-transparent border-none focus:ring-0 font-medium text-ink-soft"
                   >
                     <option value="title_abstract">Title & Abstract</option>
                     <option value="open_access">Access</option>
@@ -2811,12 +2840,12 @@ export default function Results() {
                     <option value="venue">Venue</option>
                   </select>
 
-                  <div className="h-4 w-px bg-gray-300 mx-2" />
+                  <div className="h-4 w-px bg-faint mx-2" />
 
                   <select
                     value={filter.operator}
                     onChange={(e) => updateFilter(filter.id, filter.field, e.target.value, filter.value)}
-                    className="text-xs bg-transparent border-none focus:ring-0 text-gray-600"
+                    className="text-xs bg-transparent border-none focus:ring-0 text-muted"
                   >
                     {filter.field === 'open_access' ? (
                       <option value="is">is</option>
@@ -2834,14 +2863,14 @@ export default function Results() {
                     )}
                   </select>
 
-                  <div className="h-4 w-px bg-gray-300 mx-2" />
+                  <div className="h-4 w-px bg-faint mx-2" />
 
                   {filter.field === 'open_access' ? (
                     <input
                       type="text"
                       value={filter.value}
                       onChange={(e) => updateFilter(filter.id, filter.field, filter.operator, e.target.value)}
-                      className="text-xs bg-transparent border-none focus:ring-0 w-24 placeholder-gray-400"
+                      className="text-xs bg-transparent border-none focus:ring-0 w-24 placeholder-muted"
                       placeholder="e.g. true"
                     />
                   ) : (
@@ -2849,16 +2878,16 @@ export default function Results() {
                       type={filter.field === 'year' ? 'number' : 'text'}
                       value={filter.value}
                       onChange={(e) => updateFilter(filter.id, filter.field, filter.operator, e.target.value)}
-                      className="text-xs bg-transparent border-none focus:ring-0 min-w-[120px] placeholder-gray-400"
+                      className="text-xs bg-transparent border-none focus:ring-0 min-w-[120px] placeholder-muted"
                       placeholder="Value..."
                     />
                   )}
 
                   <button
                     onClick={() => removeFilter(filter.id)}
-                    className="ml-1 p-1 hover:bg-gray-200 rounded-md transition-colors"
+                    className="ml-1 p-1 hover:bg-fill-strong rounded-md transition-colors"
                   >
-                    <X className="w-3.5 h-3.5 text-gray-500" />
+                    <X className="w-3.5 h-3.5 text-muted" />
                   </button>
                 </div>
               ))}
@@ -2870,12 +2899,12 @@ export default function Results() {
       {/* Main Content */}
       <div className="flex">
         {/* Left Column - Works List */}
-        <div className="flex-1 overflow-y-auto bg-white">
+        <div className="flex-1 overflow-y-auto bg-surface">
           <div className="max-w-4xl mx-auto">
             {/* Works Header */}
-            <div className="border-b border-gray-200 p-4 flex items-center justify-between">
+            <div className="border-b border-faint p-4 flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <h2 className="text-lg font-semibold text-black">Works</h2>
+                <h2 className="text-lg font-semibold text-ink">Works</h2>
                 {fromCache && (
                   <div className="flex items-center gap-2">
                     <span className="px-2 py-0.5 bg-yellow-100 text-yellow-800 text-xs font-medium rounded-full border border-yellow-200">
@@ -2883,7 +2912,7 @@ export default function Results() {
                     </span>
                     <button
                       onClick={() => fetchPapers(true)}
-                      className="px-2.5 py-1 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md transition-colors font-medium"
+                      className="px-2.5 py-1 text-xs bg-fill hover:bg-fill-strong text-ink-soft rounded-md transition-colors font-medium"
                       title="Bypass cache and fetch fresh results from all APIs"
                     >
                       ↻ Refresh
@@ -2897,28 +2926,28 @@ export default function Results() {
                     {/* Sliding Toggle: All Results ↔ Full Access */}
                     <div
                       onClick={() => setFullContentOnly(!fullContentOnly)}
-                      className="relative flex items-center bg-gray-200 rounded-full cursor-pointer select-none h-8 w-[200px] border border-gray-300 transition-colors duration-300"
+                      className="relative flex items-center bg-fill-strong rounded-full cursor-pointer select-none h-8 w-[200px] border border-faint transition-colors duration-300"
                       title={fullContentOnly ? 'Showing only papers with accessible full content' : 'Showing all results'}
                     >
                       {/* Sliding knob */}
                       <div
-                        className={`absolute top-[2px] h-[28px] w-[98px] rounded-full bg-black shadow-md transition-all duration-300 ease-in-out ${fullContentOnly ? 'left-[100px]' : 'left-[2px]'
+                        className={`absolute top-[2px] h-[28px] w-[98px] rounded-full bg-accent shadow-md transition-all duration-300 ease-in-out ${fullContentOnly ? 'left-[100px]' : 'left-[2px]'
                           }`}
                       />
                       {/* Left label */}
-                      <span className={`relative z-10 flex-1 text-center text-xs font-semibold transition-colors duration-300 ${!fullContentOnly ? 'text-white' : 'text-gray-500'
+                      <span className={`relative z-10 flex-1 text-center text-xs font-semibold transition-colors duration-300 ${!fullContentOnly ? 'text-white' : 'text-muted'
                         }`}>
                         All Results
                       </span>
                       {/* Right label */}
-                      <span className={`relative z-10 flex-1 text-center text-xs font-semibold transition-colors duration-300 ${fullContentOnly ? 'text-white' : 'text-gray-500'
+                      <span className={`relative z-10 flex-1 text-center text-xs font-semibold transition-colors duration-300 ${fullContentOnly ? 'text-white' : 'text-muted'
                         }`}>
                         Full Access
                       </span>
                     </div>
                     <button
                       onClick={() => setShowCitationMesh(true)}
-                      className="px-3 py-1.5 bg-black text-white rounded text-sm hover:bg-gray-800 transition-colors flex items-center gap-2"
+                      className="px-3 py-1.5 bg-accent text-white rounded text-sm hover:bg-accent-hover transition-colors flex items-center gap-2"
                       title="View Citation Network"
                     >
                       <Network className="w-4 h-4" />
@@ -2930,17 +2959,17 @@ export default function Results() {
                 <div className="relative sort-dropdown-container">
                   <button
                     onClick={() => setShowSortDropdown(!showSortDropdown)}
-                    className={`p-1.5 hover:bg-gray-100 rounded flex items-center gap-1 ${showSortDropdown ? 'bg-gray-100' : ''}`}
+                    className={`p-1.5 hover:bg-fill rounded flex items-center gap-1 ${showSortDropdown ? 'bg-fill' : ''}`}
                     title="Sort results"
                   >
-                    <ArrowUpDown className="w-4 h-4 text-gray-600" />
-                    <ChevronDown className={`w-3 h-3 text-gray-600 transition-transform ${showSortDropdown ? 'rotate-180' : ''}`} />
+                    <ArrowUpDown className="w-4 h-4 text-muted" />
+                    <ChevronDown className={`w-3 h-3 text-muted transition-transform ${showSortDropdown ? 'rotate-180' : ''}`} />
                   </button>
 
                   {/* Dropdown Menu */}
                   {showSortDropdown && (
-                    <div className="absolute right-0 top-full mt-1 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-50 py-1">
-                      <div className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase border-b border-gray-100">
+                    <div className="absolute right-0 top-full mt-1 w-48 bg-surface border border-faint rounded-lg shadow-lg z-50 py-1">
+                      <div className="px-3 py-2 text-xs font-semibold text-muted uppercase border-b border-faint">
                         Sort by
                       </div>
                       {sortOptions.map((option) => (
@@ -2950,12 +2979,12 @@ export default function Results() {
                             setSortOption(option.value);
                             setShowSortDropdown(false);
                           }}
-                          className={`w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center justify-between ${sortOption === option.value ? 'bg-gray-50 text-black font-medium' : 'text-gray-700'
+                          className={`w-full px-3 py-2 text-left text-sm hover:bg-fill flex items-center justify-between ${sortOption === option.value ? 'bg-fill text-ink font-medium' : 'text-ink-soft'
                             }`}
                         >
                           <span>{option.label}</span>
                           {sortOption === option.value && (
-                            <Check className="w-4 h-4 text-black" />
+                            <Check className="w-4 h-4 text-ink" />
                           )}
                         </button>
                       ))}
@@ -2967,17 +2996,17 @@ export default function Results() {
                 <div className="relative export-dropdown-container">
                   <button
                     onClick={() => setShowExportDropdown(!showExportDropdown)}
-                    className={`p-1.5 hover:bg-gray-100 rounded flex items-center gap-1 ${showExportDropdown ? 'bg-gray-100' : ''}`}
+                    className={`p-1.5 hover:bg-fill rounded flex items-center gap-1 ${showExportDropdown ? 'bg-fill' : ''}`}
                     title="Export results"
                   >
-                    <Download className="w-4 h-4 text-gray-600" />
-                    <ChevronDown className={`w-3 h-3 text-gray-600 transition-transform ${showExportDropdown ? 'rotate-180' : ''}`} />
+                    <Download className="w-4 h-4 text-muted" />
+                    <ChevronDown className={`w-3 h-3 text-muted transition-transform ${showExportDropdown ? 'rotate-180' : ''}`} />
                   </button>
 
                   {/* Export Dropdown Menu */}
                   {showExportDropdown && (
-                    <div className="absolute right-0 top-full mt-1 w-44 bg-white border border-gray-200 rounded-lg shadow-lg z-50 py-1">
-                      <div className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase border-b border-gray-100">
+                    <div className="absolute right-0 top-full mt-1 w-44 bg-surface border border-faint rounded-lg shadow-lg z-50 py-1">
+                      <div className="px-3 py-2 text-xs font-semibold text-muted uppercase border-b border-faint">
                         Export as
                       </div>
                       <button
@@ -2985,7 +3014,7 @@ export default function Results() {
                           exportToPDF();
                           setShowExportDropdown(false);
                         }}
-                        className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2 text-gray-700"
+                        className="w-full px-3 py-2 text-left text-sm hover:bg-fill flex items-center gap-2 text-ink-soft"
                       >
                         <FileText className="w-4 h-4" />
                         Download PDF
@@ -2995,7 +3024,7 @@ export default function Results() {
                           exportToExcel();
                           setShowExportDropdown(false);
                         }}
-                        className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2 text-gray-700"
+                        className="w-full px-3 py-2 text-left text-sm hover:bg-fill flex items-center gap-2 text-ink-soft"
                       >
                         <BarChart3 className="w-4 h-4" />
                         Export to Excel
@@ -3003,28 +3032,40 @@ export default function Results() {
                     </div>
                   )}
                 </div>
-                <button className="p-1.5 hover:bg-gray-100 rounded">
-                  <MoreVertical className="w-4 h-4 text-gray-600" />
+                <button className="p-1.5 hover:bg-fill rounded">
+                  <MoreVertical className="w-4 h-4 text-muted" />
                 </button>
               </div>
             </div>
 
-            {/* Loading State */}
+            {/* Loading State - skeleton cards, Linear-style */}
             {loading && (
-              <div className="flex flex-col items-center justify-center py-20">
-                <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-black mb-4"></div>
-                <p className="text-black text-lg">Searching research papers...</p>
-                <p className="text-gray-600 text-sm mt-2">This may take a few moments</p>
+              <div className="p-4 space-y-3" aria-label="Loading search results">
+                <p className="text-sm text-muted px-1 pb-1">
+                  Searching 10 sources<span className="animate-pulse">...</span>
+                </p>
+                {[0, 1, 2, 3, 4].map((i) => (
+                  <div key={i} className="bg-surface rounded-2xl border border-faint p-5 animate-pulse">
+                    <div className="h-5 w-3/4 rounded bg-fill-strong mb-3" />
+                    <div className="flex gap-2 mb-3">
+                      <div className="h-5 w-16 rounded-full bg-fill-strong" />
+                      <div className="h-5 w-12 rounded-full bg-fill-strong" />
+                      <div className="h-5 w-24 rounded-full bg-fill-strong" />
+                    </div>
+                    <div className="h-4 w-full rounded bg-fill mb-2" />
+                    <div className="h-4 w-2/3 rounded bg-fill" />
+                  </div>
+                ))}
               </div>
             )}
 
             {/* Error State */}
             {error && !loading && (
-              <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center m-4">
-                <p className="text-red-700 text-lg mb-4">{error}</p>
+              <div className="bg-danger-soft border border-danger-soft rounded-lg p-6 text-center m-4">
+                <p className="text-danger text-lg mb-4">{error}</p>
                 <button
                   onClick={fetchPapers}
-                  className="px-6 py-2 bg-black text-white rounded hover:bg-gray-800 transition-colors"
+                  className="px-6 py-2 bg-accent text-white rounded hover:bg-accent-hover transition-colors"
                 >
                   Try Again
                 </button>
@@ -3034,7 +3075,7 @@ export default function Results() {
             {/* Results List */}
             {!loading && !error && papers.length > 0 && (
               <>
-                <div className="border-b border-gray-200">
+                <div className="border-b border-faint">
                   {currentPapers.map((paper, index) => {
                     const paperId = paper.arxiv_id || paper.paperId || `${index}-${paper.title}`;
                     return (
@@ -3054,7 +3095,7 @@ export default function Results() {
                     <button
                       onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                       disabled={currentPage === 1}
-                      className="px-3 py-1.5 border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="px-3 py-1.5 border border-faint rounded hover:bg-fill disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       ←
                     </button>
@@ -3063,18 +3104,18 @@ export default function Results() {
                         key={page}
                         onClick={() => setCurrentPage(page)}
                         className={`px-3 py-1.5 border rounded ${currentPage === page
-                          ? 'bg-black text-white border-black'
-                          : 'border-gray-300 hover:bg-gray-50'
+                          ? 'bg-accent text-white border-black'
+                          : 'border-faint hover:bg-fill'
                           }`}
                       >
                         {page}
                       </button>
                     ))}
-                    {totalPages > 10 && <span className="px-2 text-gray-500">...</span>}
+                    {totalPages > 10 && <span className="px-2 text-muted">...</span>}
                     <button
                       onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
                       disabled={currentPage === totalPages}
-                      className="px-3 py-1.5 border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="px-3 py-1.5 border border-faint rounded hover:bg-fill disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       →
                     </button>
@@ -3086,11 +3127,11 @@ export default function Results() {
             {/* No Results */}
             {!loading && !error && papers.length === 0 && (
               <div className="text-center py-20">
-                <BookOpen className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                <p className="text-gray-600 text-lg">
+                <BookOpen className="w-16 h-16 text-muted mx-auto mb-4" />
+                <p className="text-muted text-lg">
                   No papers found{topic ? ` for "${topic}"` : ''}
                 </p>
-                <p className="text-gray-500 text-sm mt-2">
+                <p className="text-muted text-sm mt-2">
                   Try a different search term or check the spelling.
                 </p>
               </div>
@@ -3135,7 +3176,7 @@ export default function Results() {
               unpaywallPdfUrl={unpaywallPdfUrl}
             />
             <div
-              className="fixed inset-0 bg-black/30 z-40 md:hidden"
+              className="fixed inset-0 bg-accent/30 z-40 md:hidden"
               onClick={() => setSelectedPaper(null)}
             ></div>
           </>

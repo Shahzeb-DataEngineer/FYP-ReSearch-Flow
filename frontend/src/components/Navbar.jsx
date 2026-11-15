@@ -1,32 +1,26 @@
 import React, { useState, useEffect, useRef } from "react";
-import { NavLink, useNavigate, Link } from "react-router-dom";
-import researchLogo from "../assets/researchLogo.jpg";
-import { Menu, LogOut, Bookmark, Crown, ArrowUpRight } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Menu, LogOut, Bookmark, Crown, Search, Sun, Moon } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
+import { useTheme } from "../hooks/useTheme";
 
-export default function Navbar() {
-  const [, setVisible] = useState(false);
+/**
+ * Slim top bar (Linear-style inverted-L chrome): mobile menu button,
+ * Cmd+K quick-search trigger, theme toggle, and the user menu.
+ * Main navigation lives in the sidebar.
+ */
+export default function Navbar({ onMenu, onOpenPalette }) {
   const [userMenuVisible, setUserMenuVisible] = useState(false);
   const { user, isAuthenticated, signOut, loading } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const userPlan = (user?.user_metadata?.plan || "basic").toLowerCase();
 
-  const menuRef = useRef(null);
-  const buttonRef = useRef(null);
   const userMenuRef = useRef(null);
   const userButtonRef = useRef(null);
   const navigate = useNavigate();
 
-  // Handle clicks outside menus
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (
-        menuRef.current &&
-        !menuRef.current.contains(event.target) &&
-        buttonRef.current &&
-        !buttonRef.current.contains(event.target)
-      ) {
-        setVisible(false);
-      }
       if (
         userMenuRef.current &&
         !userMenuRef.current.contains(event.target) &&
@@ -53,21 +47,9 @@ export default function Navbar() {
     }
   };
 
-  const handleSavedSearches = () => {
-    navigate("/saved-searches");
-    setUserMenuVisible(false);
-  };
-
-  const handlePricing = () => navigate("/pricing");
-
-  const handleUpgrade = () => {
-    setUserMenuVisible(false);
-    navigate("/pricing");
-  };
-
-  const getUserInitials = (user) => {
-    if (!user) return "U";
-    const name = user.user_metadata?.full_name || user.email;
+  const getUserInitials = (u) => {
+    if (!u) return "U";
+    const name = u.user_metadata?.full_name || u.email;
     if (name) {
       return name
         .split(" ")
@@ -79,179 +61,141 @@ export default function Navbar() {
     return "U";
   };
 
-  const getUserDisplayName = (user) => {
-    if (!user) return "User";
-    return (
-      user.user_metadata?.full_name ||
-      user.email?.split("@")[0] ||
-      "User"
-    );
+  const getUserDisplayName = (u) => {
+    if (!u) return "User";
+    return u.user_metadata?.full_name || u.email?.split("@")[0] || "User";
   };
 
-  const NavButton = ({ children, primary = false, onClick }) => (
-    <button
-      onClick={onClick}
-      className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors border ${
-        primary
-          ? "bg-black text-white border-black hover:bg-gray-800"
-          : "text-gray-700 border-transparent hover:border-gray-300 hover:bg-gray-100"
-      }`}
-    >
-      {children}
-    </button>
-  );
-
-  const UserAvatar = ({ user, onClick }) => (
-    <button
-      ref={userButtonRef}
-      onClick={onClick}
-      className="flex items-center space-x-2 px-2 py-1.5 rounded-full hover:bg-gray-100 transition-all duration-200"
-    >
-      <div className="w-10 h-10 bg-black rounded-full flex items-center justify-center text-white text-sm font-medium flex-shrink-0">
-        {user?.user_metadata?.avatar_url ? (
-          <img
-            src={user.user_metadata.avatar_url}
-            alt={getUserDisplayName(user)}
-            className="w-10 h-10 rounded-full object-cover"
-          />
-        ) : (
-          getUserInitials(user)
-        )}
-      </div>
-      <span className="text-gray-700 text-sm font-medium hidden sm:block max-w-[100px] truncate">
-        {getUserDisplayName(user)}
-      </span>
-    </button>
-  );
-
-  const UserMenu = () => (
-    <div
-      ref={userMenuRef}
-      className="absolute right-0 mt-2 min-w-max py-2 bg-white rounded-lg shadow-lg border border-gray-200 z-50"
-    >
-      <div className="px-4 py-2 border-b border-gray-100">
-        <p className="text-sm font-medium text-gray-900 whitespace-nowrap">
-          {getUserDisplayName(user)}
-        </p>
-        <p className="text-sm text-gray-500 whitespace-nowrap">{user?.email}</p>
-        <div className="mt-2 flex items-center gap-2">
-          <span className="text-xs text-gray-600 whitespace-nowrap">
-            Current plan: {userPlan.charAt(0).toUpperCase() + userPlan.slice(1)}
-          </span>
-          {["basic", "premium"].includes(userPlan) && (
-            <button
-              onClick={handleUpgrade}
-              className="text-xs px-2 py-1 border border-green-500 text-green-600 rounded-full hover:bg-green-50 transition-colors"
-            >
-              Upgrade
-            </button>
-          )}
-        </div>
-      </div>
-
-      <button
-        onClick={handleSavedSearches}
-        className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center space-x-2"
-      >
-        <Bookmark className="w-4 h-4" />
-        <span>Saved Searches</span>
-      </button>
-
-      <hr className="my-1 border-gray-500"/>
-
-      <button
-        onClick={handleLogout}
-        className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center space-x-2"
-      >
-        <LogOut className="w-4 h-4" />
-        <span>Sign out</span>
-      </button>
-    </div>
-  );
-
-  if (loading) {
-    return (
-      <header className="border-b border-gray-200 bg-white relative z-50">
-        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <div className="w-9 h-9 flex items-center justify-center">
-              <img className="rounded-lg" src={researchLogo} alt="ReSearch Flow" />
-            </div>
-            <div className="hidden md:block">
-              <h1 className="text-lg font-semibold text-black">ReSearch Flow</h1>
-              <p className="text-xs text-gray-500">AI Research Assistant</p>
-            </div>
-          </div>
-          <div className="w-20 h-6 bg-gray-200 rounded-full animate-pulse"></div>
-        </div>
-      </header>
-    );
-  }
-
   return (
-    <header className="border-b border-gray-200 bg-white relative z-50">
-      <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
-      <Link to="/" className="flex items-center space-x-3 hover:opacity-80 transition-opacity">
-        <div className="w-9 h-9 flex items-center justify-center">
-          <img className="rounded-lg" src={researchLogo} alt="ReSearch Flow" />
-        </div>
-        <div className="hidden md:block">
-          <h1 className="text-lg font-semibold text-black">ReSearch Flow</h1>
-          <p className="text-xs text-gray-500">AI Research Assistant</p>
-        </div>
-      </Link>
+    <header className="sticky top-0 z-40 border-b border-faint bg-surface/80 backdrop-blur-md">
+      <div className="flex items-center gap-2 px-3 sm:px-4 py-2.5">
+        <button
+          type="button"
+          onClick={onMenu}
+          aria-label="Open menu"
+          className="p-2 -ml-1 rounded-lg text-muted hover:text-ink hover:bg-fill transition-colors md:hidden"
+        >
+          <Menu className="w-5 h-5" />
+        </button>
 
-      
+        {/* Cmd+K quick search trigger */}
+        <button
+          type="button"
+          onClick={onOpenPalette}
+          className="flex-1 max-w-md flex items-center gap-2.5 px-3 py-2 rounded-lg border border-faint bg-fill text-sm text-muted hover:text-ink hover:border-accent/40 transition-all duration-150 text-left"
+        >
+          <Search className="w-4 h-4 shrink-0" />
+          <span className="flex-1 truncate hidden sm:inline">Search papers, or jump to...</span>
+          <span className="flex-1 truncate sm:hidden">Search...</span>
+          <kbd className="hidden sm:inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[11px] font-medium text-muted bg-surface border border-faint rounded-md">
+            ⌘K
+          </kbd>
+        </button>
 
-      <div className="flex items-center space-x-2">
+        <div className="flex-1" />
+
+        {/* Theme toggle */}
         <button
-          onClick={() => navigate('/prisma')}
-          className="hidden sm:inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-700 hover:text-black rounded-full border border-transparent hover:border-gray-300 hover:bg-gray-100 transition-colors"
+          type="button"
+          onClick={toggleTheme}
+          aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+          title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+          className="p-2 rounded-lg text-muted hover:text-ink hover:bg-fill transition-colors"
         >
-          PRISMA Review
+          {theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
         </button>
-        <button
-          onClick={() => navigate('/citation-graph')}
-          className="hidden sm:inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-700 hover:text-black rounded-full border border-transparent hover:border-gray-300 hover:bg-gray-100 transition-colors"
-        >
-          Citation Graph
-        </button>
-        <button
-          onClick={() => navigate('/my-library')}
-          className="hidden sm:inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-700 hover:text-black rounded-full border border-transparent hover:border-gray-300 hover:bg-gray-100 transition-colors"
-        >
-          My Library
-        </button>
-        <button
-          onClick={handlePricing}
-          className="hidden sm:inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-700 hover:text-black rounded-full border border-transparent hover:border-gray-300 hover:bg-gray-100 transition-colors"
-        >
-          <Crown className="w-4 h-4" />
-          Pricing
-        </button>
-        {isAuthenticated ? (
+
+        {loading ? (
+          <div className="w-9 h-9 rounded-full bg-fill animate-pulse" />
+        ) : isAuthenticated ? (
           <div className="relative">
-            <UserAvatar
-              user={user}
+            <button
+              ref={userButtonRef}
               onClick={() => setUserMenuVisible(!userMenuVisible)}
-            />
-            {userMenuVisible && <UserMenu />}
+              className="flex items-center gap-2 p-1 rounded-full hover:bg-fill transition-colors"
+              aria-label="Account menu"
+            >
+              <span className="w-8 h-8 bg-accent rounded-full flex items-center justify-center text-white text-xs font-semibold shrink-0 overflow-hidden">
+                {user?.user_metadata?.avatar_url ? (
+                  <img
+                    src={user.user_metadata.avatar_url}
+                    alt={getUserDisplayName(user)}
+                    className="w-8 h-8 rounded-full object-cover"
+                  />
+                ) : (
+                  getUserInitials(user)
+                )}
+              </span>
+              <span className="text-sm font-medium text-ink-soft hidden lg:block max-w-[100px] truncate">
+                {getUserDisplayName(user)}
+              </span>
+            </button>
+            {userMenuVisible && (
+              <div
+                ref={userMenuRef}
+                className="absolute right-0 mt-2 min-w-max py-2 bg-surface rounded-2xl shadow-lift border border-faint z-50 animate-fade-up"
+              >
+                <div className="px-4 py-2 border-b border-faint">
+                  <p className="text-sm font-medium text-ink whitespace-nowrap">
+                    {getUserDisplayName(user)}
+                  </p>
+                  <p className="text-sm text-muted whitespace-nowrap">{user?.email}</p>
+                  <div className="mt-2 flex items-center gap-2">
+                    <span className="text-xs text-muted whitespace-nowrap">
+                      Current plan: {userPlan.charAt(0).toUpperCase() + userPlan.slice(1)}
+                    </span>
+                    {["basic", "premium"].includes(userPlan) && (
+                      <button
+                        onClick={() => { setUserMenuVisible(false); navigate("/pricing"); }}
+                        className="text-xs px-2 py-1 border border-accent text-accent rounded-full hover:bg-accent-tint transition-colors"
+                      >
+                        Upgrade
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <button
+                  onClick={() => { navigate("/saved-searches"); setUserMenuVisible(false); }}
+                  className="w-full px-4 py-2 text-left text-sm text-ink-soft hover:bg-fill flex items-center space-x-2 transition-colors"
+                >
+                  <Bookmark className="w-4 h-4" />
+                  <span>Saved Searches</span>
+                </button>
+                <button
+                  onClick={() => { navigate("/pricing"); setUserMenuVisible(false); }}
+                  className="w-full px-4 py-2 text-left text-sm text-ink-soft hover:bg-fill flex items-center space-x-2 transition-colors"
+                >
+                  <Crown className="w-4 h-4" />
+                  <span>Pricing</span>
+                </button>
+                <hr className="my-1 border-faint" />
+                <button
+                  onClick={handleLogout}
+                  className="w-full px-4 py-2 text-left text-sm text-danger hover:bg-danger-soft flex items-center space-x-2 transition-colors"
+                >
+                  <LogOut className="w-4 h-4" />
+                  <span>Sign out</span>
+                </button>
+              </div>
+            )}
           </div>
         ) : (
-          <div className="space-x-6">
+          <div className="flex items-center gap-1 sm:gap-2">
             <button
               onClick={handleLogin}
-              className="text-sm text-gray-700 hover:text-black"
+              className="px-3 py-1.5 text-sm font-medium text-ink-soft hover:text-accent rounded-full transition-colors"
             >
               Log in
             </button>
-            <NavButton primary onClick={handleSignUp}>Sign up</NavButton>
+            <button
+              onClick={handleSignUp}
+              className="px-3.5 py-1.5 text-sm font-medium bg-accent text-white rounded-full hover:bg-accent-hover transition-colors shadow-soft"
+            >
+              Sign up
+            </button>
           </div>
         )}
       </div>
-
-      
-    </div>
     </header>
   );
 }

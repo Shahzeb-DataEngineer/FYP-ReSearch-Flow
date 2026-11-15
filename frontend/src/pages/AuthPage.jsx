@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { FaGoogle, FaGithub, FaEye, FaEyeSlash } from 'react-icons/fa';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import researchLogo from '../assets/researchLogo.jpg'
 
 const AuthPage = () => {
   const navigate = useNavigate();
@@ -150,42 +149,42 @@ const AuthPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50  viga-font flex items-center justify-center p-4">
+    <div className="min-h-screen bg-paper flex items-center justify-center p-4">
       <div className="w-full my-10 max-w-md">
         {/* Logo and Title */}
         <div className="text-center justify-center gap-2 flex flex-row">
           <div>
-            <img className='h-12 w-12 rounded-xl' src={researchLogo} />
+            <img className='h-12 w-12 rounded-xl' src='/logo.svg' alt='ReSearch Flow logo' />
           </div>
-          <div className="text-black">
+          <div className="text-ink">
             <h1 className="text-lg font-semibold">ReSearch Flow</h1>
-            <p className="text-sm text-gray-500">AI Research Assistant</p>
+            <p className="text-sm text-muted">AI Research Assistant</p>
           </div>
         </div>
 
         {/* Main Form Card */}
-        <div className="bg-white rounded-2xl p-8 mt-6 shadow-2xl border border-gray-200">
-          <h2 className="text-2xl text-black text-center mb-2">
+        <div className="bg-surface rounded-2xl p-8 mt-6 shadow-sm border border-faint">
+          <h2 className="font-display text-2xl font-semibold text-ink text-center mb-2">
             {isLogin ? 'Login' : 'Create Account'}
           </h2>
           
-          <p className="text-gray-500 text-xs text-center mb-6">
+          <p className="text-muted text-xs text-center mb-6">
             By {isLogin ? 'signing in' : 'creating an account'} you agree to accept our{' '}
-            <span className="text-black underline cursor-pointer hover:text-gray-600">Terms of Service</span> and{' '}
-            <span className="text-black underline cursor-pointer hover:text-gray-600">Privacy Policy</span>
+            <span className="text-accent underline cursor-pointer hover:text-accent-hover">Terms of Service</span> and{' '}
+            <span className="text-accent underline cursor-pointer hover:text-accent-hover">Privacy Policy</span>
           </p>
 
           {/* Success Message */}
           {successMessage && (
-            <div className="mb-4 p-3 bg-green-500/20 border border-green-500/30 rounded-lg">
-              <p className="text-green-200 text-sm text-center">{successMessage}</p>
+            <div className="mb-4 p-3 bg-accent-tint border border-accent-soft rounded-lg">
+              <p className="text-accent text-sm text-center">{successMessage}</p>
             </div>
           )}
 
           {/* Error Message */}
           {errors.submit && (
-            <div className="mb-4 p-3 bg-red-100 border border-red-300 rounded-lg">
-              <p className="text-red-700 text-sm text-center font-medium">{errors.submit}</p>
+            <div className="mb-4 p-3 bg-danger-soft border border-danger-soft rounded-lg">
+              <p className="text-danger text-sm text-center font-medium">{errors.submit}</p>
             </div>
           )}
 
@@ -196,10 +195,10 @@ const AuthPage = () => {
               onClick={() => handleSocialLogin("Google")}
               disabled={isLoading || authLoading}
               className="w-14 h-14 flex items-center justify-center rounded-full
-                         bg-gray-100 hover:bg-gray-200 transition-all disabled:opacity-50 
-                         border border-gray-300"
+                         bg-surface hover:bg-fill transition-all disabled:opacity-50 
+                         border border-faint"
             >
-              <FaGoogle className="text-red-500 text-2xl" />
+              <FaGoogle className="text-danger text-2xl" />
             </button>
 
             {/* Github */}
@@ -207,8 +206,8 @@ const AuthPage = () => {
               onClick={() => handleSocialLogin("Github")}
               disabled={isLoading || authLoading}
               className="w-14 h-14 flex items-center justify-center rounded-full
-                         bg-gray-100 hover:bg-gray-200 transition-all disabled:opacity-50 
-                         border border-gray-300"
+                         bg-surface hover:bg-fill transition-all disabled:opacity-50 
+                         border border-faint"
             >
               <FaGithub className="text-black text-2xl" />
             </button>
@@ -216,10 +215,10 @@ const AuthPage = () => {
 
           <div className="relative mb-4">
             <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-gray-300"></div>
+              <div className="w-full border-t border-faint"></div>
             </div>
             <div className="relative flex justify-center text-sm">
-              <span className="px-4 bg-white text-gray-500">Or continue with</span>
+              <span className="px-4 bg-surface text-muted">Or continue with</span>
             </div>
           </div>
 
@@ -228,7 +227,7 @@ const AuthPage = () => {
             {/* Full Name Field (only for sign up) */}
             {!isLogin && (
               <div>
-                <label className="block text-black text-sm font-medium mb-2">
+                <label className="block text-ink text-sm font-medium mb-2">
                   Full Name
                 </label>
                 <input
@@ -237,19 +236,19 @@ const AuthPage = () => {
                   value={formData.fullName}
                   onChange={handleInputChange}
                   placeholder="Enter your full name"
-                  className={`w-full px-4 py-3 bg-gray-50 border rounded-lg text-black placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent transition-colors ${
-                    errors.fullName ? 'border-red-500' : 'border-gray-300'
+                  className={`w-full px-4 py-3 bg-surface border rounded-lg text-ink placeholder-muted focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-colors ${
+                    errors.fullName ? 'border-danger' : 'border-faint'
                   }`}
                 />
                 {errors.fullName && (
-                  <p className="mt-1 text-red-500 text-sm">{errors.fullName}</p>
+                  <p className="mt-1 text-danger text-sm">{errors.fullName}</p>
                 )}
               </div>
             )}
 
             {/* Email Field */}
             <div>
-              <label className="block text-black text-sm font-medium mb-2">
+              <label className="block text-ink text-sm font-medium mb-2">
                 Email
               </label>
               <input
@@ -258,18 +257,18 @@ const AuthPage = () => {
                 value={formData.email}
                 onChange={handleInputChange}
                 placeholder="Email"
-                className={`w-full px-4 py-3 bg-gray-50 border rounded-lg text-black placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent transition-colors ${
-                  errors.email ? 'border-red-500' : 'border-gray-300'
+                className={`w-full px-4 py-3 bg-surface border rounded-lg text-ink placeholder-muted focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-colors ${
+                  errors.email ? 'border-danger' : 'border-faint'
                 }`}
               />
               {errors.email && (
-                <p className="mt-1 text-red-500 text-sm">{errors.email}</p>
+                <p className="mt-1 text-danger text-sm">{errors.email}</p>
               )}
             </div>
 
             {/* Password Field */}
             <div>
-              <label className="block text-black text-sm font-medium mb-2">
+              <label className="block text-ink text-sm font-medium mb-2">
                 Password
               </label>
               <div className="relative">
@@ -279,27 +278,27 @@ const AuthPage = () => {
                   value={formData.password}
                   onChange={handleInputChange}
                   placeholder="Password"
-                  className={`w-full px-4 py-3 pr-12 bg-gray-50 border rounded-lg text-black placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent transition-colors ${
-                    errors.password ? 'border-red-500' : 'border-gray-300'
+                  className={`w-full px-4 py-3 pr-12 bg-surface border rounded-lg text-ink placeholder-muted focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-colors ${
+                    errors.password ? 'border-danger' : 'border-faint'
                   }`}
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-black transition-colors"
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted hover:text-ink transition-colors"
                 >
                   {showPassword ? <FaEyeSlash /> : <FaEye />}
                 </button>
               </div>
               {errors.password && (
-                <p className="mt-1 text-red-500 text-sm">{errors.password}</p>
+                <p className="mt-1 text-danger text-sm">{errors.password}</p>
               )}
             </div>
 
             {/* Confirm Password Field (only for sign up) */}
             {!isLogin && (
               <div>
-                <label className="block text-black text-sm font-medium mb-2">
+                <label className="block text-ink text-sm font-medium mb-2">
                   Re-Password*
                 </label>
                 <div className="relative">
@@ -309,20 +308,20 @@ const AuthPage = () => {
                     value={formData.confirmPassword}
                     onChange={handleInputChange}
                     placeholder="Re-Password"
-                    className={`w-full px-4 py-3 pr-12 bg-gray-50 border rounded-lg text-black placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent transition-colors ${
-                      errors.confirmPassword ? 'border-red-500' : 'border-gray-300'
+                    className={`w-full px-4 py-3 pr-12 bg-surface border rounded-lg text-ink placeholder-muted focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-colors ${
+                      errors.confirmPassword ? 'border-danger' : 'border-faint'
                     }`}
                   />
                   <button
                     type="button"
                     onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-black transition-colors"
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted hover:text-ink transition-colors"
                   >
                     {showConfirmPassword ? <FaEyeSlash /> : <FaEye />}
                   </button>
                 </div>
                 {errors.confirmPassword && (
-                  <p className="mt-1 text-red-500 text-sm">{errors.confirmPassword}</p>
+                  <p className="mt-1 text-danger text-sm">{errors.confirmPassword}</p>
                 )}
               </div>
             )}
@@ -332,7 +331,7 @@ const AuthPage = () => {
               type="button"
               onClick={handleSubmit}
               disabled={isLoading || authLoading}
-              className="w-full bg-black hover:bg-gray-800 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-semibold py-3 px-4 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2"
+              className="w-full bg-accent hover:bg-accent-hover disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-medium py-3 px-4 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2"
             >
               {isLoading || authLoading ? (
                 <div className="flex items-center justify-center">
@@ -347,12 +346,12 @@ const AuthPage = () => {
 
           {/* Toggle Auth Mode */}
           <div className="mt-6 text-center">
-            <span className="text-gray-500 text-sm">
+            <span className="text-muted text-sm">
               {isLogin ? "Don't have an account?" : "Already have an account?"}{' '}
               <button
                 onClick={toggleAuthMode}
                 disabled={isLoading || authLoading}
-                className="text-black font-semibold hover:underline focus:outline-none disabled:opacity-50"
+                className="text-accent font-semibold hover:underline focus:outline-none disabled:opacity-50"
               >
                 {isLogin ? 'Sign up' : 'Log in'}
               </button>
